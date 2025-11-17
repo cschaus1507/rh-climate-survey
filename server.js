@@ -152,11 +152,11 @@ app.get('/admin/reset', async (req, res) => {
       return res.status(403).json({ error: 'forbidden' });
     }
 
-    // Make sure the table exists so TRUNCATE doesn't explode
+    // Ensure table exists
     await ensureSchema();
 
-    // Safety: IF EXISTS so it won't error if the table somehow isn't there
-    await pool.query('TRUNCATE TABLE IF EXISTS submissions;');
+    // TRUNCATE has no IF EXISTS version in Postgres
+    await pool.query('TRUNCATE TABLE submissions;');
 
     return res.json({ ok: true, message: 'Submissions table truncated.' });
   } catch (err) {
@@ -166,7 +166,6 @@ app.get('/admin/reset', async (req, res) => {
       .json({ error: 'server_error', message: String(err) });
   }
 });
-
 
 // 404
 app.use((_req, res) => {
