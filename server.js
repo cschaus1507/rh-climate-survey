@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 8080;
 const SURVEY_ID = process.env.SURVEY_ID || 'royhart_parent_family_climate_2025';
 const DATABASE_URL = process.env.DATABASE_URL;
 const SALT = process.env.SALT || 'CHANGE_ME_SALT';
-const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbypxoYRRQKk-ZCO_GCrTgjQYyvvwAbBkVBs0ufVXVB6tcxytHZbgAXw5rcEv56utGaFBA/exec'; // optional Sheet webhook
+const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || ''; // optional Sheet webhook
 const TRUST_PROXY = process.env.TRUST_PROXY !== 'false';   // default true
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 
