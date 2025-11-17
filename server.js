@@ -112,20 +112,30 @@ app.post('/submit', async (req, res) => {
     );
 
     // Optional: forward to Google Apps Script Web App (Sheet)
-    if (APPS_SCRIPT_URL) {
-      // Node 18+ has global fetch
-      fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          surveyId: SURVEY_ID,
-          payload,
-          submittedAt: new Date().toISOString()
-        })
-      }).catch(err => {
-        console.warn('Apps Script forward failed:', err.message || err);
-      });
-    }
+if (APPS_SCRIPT_URL) {
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      surveyId: SURVEY_ID,
+      payload,
+      submittedAt: new Date().toISOString()
+    })
+  })
+    .then(async (r) => {
+      if (!r.ok) {
+        const text = await r.text().catch(() => '');
+        console.warn('Apps Script HTTP error:', r.status, text);
+      } else {
+        const text = await r.text().catch(() => '');
+        console.log('Apps Script success response:', text);
+      }
+    })
+    .catch((err) => {
+      console.warn('Apps Script forward failed:', err.message || err);
+    });
+}
+
 
     return res.json({ ok: true });
   } catch (err) {
