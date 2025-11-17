@@ -15,6 +15,7 @@ const DATABASE_URL = process.env.DATABASE_URL;
 const SALT = process.env.SALT || 'CHANGE_ME_SALT';
 const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || ''; // optional Sheet webhook
 const TRUST_PROXY = process.env.TRUST_PROXY !== 'false';   // default true
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 
 if (!DATABASE_URL) {
   console.error('Missing DATABASE_URL env var.');
