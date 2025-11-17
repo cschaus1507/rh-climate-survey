@@ -136,6 +136,7 @@ app.post('/submit', async (req, res) => {
     return res.status(500).json({ error: 'server_error' });
   }
 });
+
 // --- Admin route to clear all submissions (for testing) ---
 // WARNING: this wipes the entire submissions table.
 // Protect it with ADMIN_TOKEN and only use while testing.
@@ -144,18 +145,27 @@ app.get('/admin/reset', async (req, res) => {
     if (!ADMIN_TOKEN) {
       return res.status(500).json({ error: 'admin_token_not_set' });
     }
+
     const token = req.query.token;
     if (token !== ADMIN_TOKEN) {
       return res.status(403).json({ error: 'forbidden' });
     }
 
-    await pool.query('TRUNCATE TABLE submissions;');
+    // Make sure the table exists so TRUNCATE doesn't explode
+    await ensureSchema();
+
+    // Safety: IF EXISTS so it won't error if the table somehow isn't there
+    await pool.query('TRUNCATE TABLE IF EXISTS submissions;');
+
     return res.json({ ok: true, message: 'Submissions table truncated.' });
   } catch (err) {
     console.error('Admin reset error:', err);
-    return res.status(500).json({ error: 'server_error' });
+    return res
+      .status(500)
+      .json({ error: 'server_error', message: String(err) });
   }
 });
+
 
 // 404
 app.use((_req, res) => {
