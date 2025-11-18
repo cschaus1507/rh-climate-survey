@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Roy-Hart Climate Survey – Admin Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Chart.js for graphs -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --royhart-purple: #5a3c92;
+      --royhart-gray: #f5f5f5;
+      --royhart-dark: #333333;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      background: #ffffff;
+      color: var(--royhart-dark);
+    }
+
+    header {
+      background: var(--royhart-purple);
+      color: white;
+      padding: 1rem 1.5rem;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 1.4rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    header span.tagline {
+      font-weight: normal;
+      font-size: 0.9rem;
+      opacity: 0.8;
+    }
+
+    main {
+      max-width: 1200px;
+      margin: 1.5rem auto;
+      padding: 0 1rem 2rem;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 0.75rem;
+      border: 1px solid #e0e0e0;
+      margin-bottom: 1rem;
+      padding: 1rem 1.25rem;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.02);
+    }
+
+    .card h2 {
+      margin-top: 0;
+      font-size: 1.1rem;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 0.4rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .flex-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .flex-grow {
+      flex: 1 1 280px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.9rem;
+      margin-bottom: 0.25rem;
+    }
+
+    input[type="password"],
+    input[type="text"],
+    select {
+      width: 100%;
+      max-width: 280px;
+      padding: 0.4rem 0.5rem;
+      border-radius: 0.4rem;
+      border: 1px solid #ccc;
+      font-size: 0.9rem;
+    }
+
+    button {
+      border-radius: 999px;
+      border: none;
+      background: var(--royhart-purple);
+      color: white;
+      padding: 0.4rem 0.9rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    .status {
+      font-size: 0.85rem;
+      margin-top: 0.5rem;
+      color: #555;
+    }
+
+    .status.error {
+      color: #b91c1c;
+    }
+
+    .status.success {
+      color: #166534;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    th, td {
+      border: 1px solid #e5e5e5;
+      padding: 0.4rem 0.5rem;
+      text-align: left;
+    }
+
+    th {
+      background: var(--royhart-gray);
+      font-weight: 600;
+    }
+
+    tr:nth-child(even) td {
+      background: #fafafa;
+    }
+
+    .small {
+      font-size: 0.8rem;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 0.1rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    .pill.scale {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .pill.free {
+      background: #e0f2fe;
+      color: #075985;
+    }
+
+    .free-text-container {
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #e5e5e5;
+      border-radius: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      background: #fafafa;
+      font-size: 0.85rem;
+    }
+
+    .free-text-item {
+      margin-bottom: 0.4rem;
+      padding-bottom: 0.3rem;
+      border-bottom: 1px solid #eee;
+    }
+
+    .free-text-item:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    @media print {
+      header, #controls {
+        display: none !important;
+      }
+      body {
+        background: white;
+      }
+      .card {
+        box-shadow: none;
+        border-color: #ddd;
+      }
+      main {
+        margin: 0;
+        padding: 0;
+        max-width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>
+      Roy-Hart Climate Survey
+      <span class="tagline">Admin Dashboard &amp; Printable Report</span>
+    </h1>
+  </header>
+
+  <main>
+    <!-- Controls -->
+    <section class="card" id="controls">
+      <h2>Load Survey Data</h2>
+      <div class="flex-row">
+        <div class="flex-grow">
+          <label for="adminToken">Admin token</label>
+          <input
+            type="password"
+            id="adminToken"
+            placeholder="Enter ADMIN_TOKEN value"
+          />
+          <div class="small" style="margin-top: 0.25rem;">
+            This must match <code>ADMIN_TOKEN</code> on your backend.
+          </div>
+        </div>
+
+        <div style="align-self: flex-end;">
+          <button id="loadBtn">Load Data</button>
+          <button id="printBtn" type="button">Print / Save as PDF</button>
+          <div id="status" class="status"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Summary -->
+    <section class="card">
+      <h2>Overall Summary</h2>
+      <div id="overallSummary" class="small">
+        No data loaded yet.
+      </div>
+    </section>
+
+    <!-- Question table + chart -->
+    <section class="card">
+      <h2>Question Breakdown</h2>
+      <div class="flex-row">
+        <div class="flex-grow">
+          <label for="questionSelect">Choose a question to graph</label>
+          <select id="questionSelect">
+            <option value="">-- no data yet --</option>
+          </select>
+          <div style="margin-top: 0.75rem;">
+            <canvas id="questionChart" height="180"></canvas>
+          </div>
+        </div>
+
+        <div class="flex-grow">
+          <h3 class="small" style="margin-top: 0;">All Questions (scale items)</h3>
+          <div style="max-height: 260px; overflow-y: auto;">
+            <table id="summaryTable">
+              <thead>
+                <tr>
+                  <th>Key</th>
+                  <th>Label</th>
+                  <th>Type</th>
+                  <th>Responses</th>
+                  <th>Average</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- filled by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Free text -->
+    <section class="card">
+      <h2>Open-Ended Responses</h2>
+      <div id="freeTextContainer" class="small">
+        No open-ended responses loaded yet.
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // Map of key -> friendlier label
+    // You can expand/adjust this over time.
+    const QUESTION_LABELS = {
+      community_welcomed_elem: 'Feel welcomed and included – Elementary',
+      community_welcomed_ms: 'Feel welcomed and included – Middle School',
+      community_welcomed_hs: 'Feel welcomed and included – High School',
+      // Add more mappings as needed:
+      // 'safety_child_safe_elem': 'My child is safe at school – Elementary',
+      // etc.
+    };
+
+    const sectionByPrefix = [
+      ['Community', 'community_'],
+      ['Communication', 'comm_'],
+      ['Success', 'success_'],
+      ['Advocacy', 'advocacy_'],
+      ['Decision', 'decision_'],
+      ['Safety', 'safety_'],
+    ];
+
+    function prettyLabelForKey(key) {
+      if (QUESTION_LABELS[key]) return QUESTION_LABELS[key];
+
+      // Fallback: infer from prefix + cleaned remainder
+      for (const [section, prefix] of sectionByPrefix) {
+        if (key.startsWith(prefix)) {
+          const rest = key.slice(prefix.length)
+            .replace(/_elem$/, ' (Elem)')
+            .replace(/_ms$/, ' (MS)')
+            .replace(/_hs$/, ' (HS)');
+          const human = rest.replace(/_/g, ' ');
+          return section + ': ' + human;
+        }
+      }
+      return key;
+    }
+
+    let currentSummary = null;
+    let chartInstance = null;
+
+    const statusEl = document.getElementById('status');
+    const loadBtn = document.getElementById('loadBtn');
+    const printBtn = document.getElementById('printBtn');
+    const adminTokenInput = document.getElementById('adminToken');
+    const overallSummaryEl = document.getElementById('overallSummary');
+    const questionSelect = document.getElementById('questionSelect');
+    const summaryTableBody = document.querySelector('#summaryTable tbody');
+    const freeTextContainer = document.getElementById('freeTextContainer');
+    const chartCanvas = document.getElementById('questionChart');
+
+    async function loadData() {
+      const token = adminTokenInput.value.trim();
+      if (!token) {
+        setStatus('Please enter your admin token.', true);
+        return;
+      }
+
+      setStatus('Loading data...', false);
+      loadBtn.disabled = true;
+
+      try {
+        const res = await fetch(`/admin/summary?token=${encodeURIComponent(token)}`);
+        if (!res.ok) {
+          const text = await res.text();
+          console.error('Admin summary error:', text);
+          setStatus('Error loading data (HTTP ' + res.status + ').', true);
+          loadBtn.disabled = false;
+          return;
+        }
+
+        const json = await res.json();
+        if (!json.ok) {
+          setStatus('Error from server: ' + (json.error || 'unknown'), true);
+          loadBtn.disabled = false;
+          return;
+        }
+
+        currentSummary = json.summary;
+        renderSummary(json.summary);
+        setStatus('Data loaded successfully.', false);
+      } catch (err) {
+        console.error(err);
+        setStatus('Network error loading data.', true);
+      } finally {
+        loadBtn.disabled = false;
+      }
+    }
+
+    function setStatus(msg, isError) {
+      statusEl.textContent = msg || '';
+      statusEl.className = 'status' + (isError ? ' error' : ' success');
+    }
+
+    function renderSummary(summary) {
+      if (!summary) return;
+
+      // Overall summary text
+      overallSummaryEl.innerHTML = `
+        <p><strong>Survey ID:</strong> ${summary.surveyId}</p>
+        <p><strong>Total submissions:</strong> ${summary.totalSubmissions}</p>
+      `;
+
+      // Build options for questionSelect and table rows
+      const entries = Object.values(summary.questions || {}).filter(q => q.type === 'scale');
+      entries.sort((a, b) => a.key.localeCompare(b.key));
+
+      // Dropdown
+      questionSelect.innerHTML = '';
+      if (!entries.length) {
+        questionSelect.innerHTML = '<option value="">(No scale questions found)</option>';
+      } else {
+        questionSelect.innerHTML = '<option value="">-- Select a question --</option>';
+        for (const q of entries) {
+          const opt = document.createElement('option');
+          opt.value = q.key;
+          opt.textContent = prettyLabelForKey(q.key);
+          questionSelect.appendChild(opt);
+        }
+      }
+
+      // Table
+      summaryTableBody.innerHTML = '';
+      for (const q of entries) {
+        const tr = document.createElement('tr');
+
+        const avg = q.average != null ? q.average.toFixed(2) : '';
+
+        tr.innerHTML = `
+          <td><code>${q.key}</code></td>
+          <td>${prettyLabelForKey(q.key)}</td>
+          <td><span class="pill scale">1–5 scale</span></td>
+          <td>${q.responses}</td>
+          <td>${avg}</td>
+        `;
+
+        summaryTableBody.appendChild(tr);
+      }
+
+      // Free text
+      const free = summary.freeText || {};
+      const freeKeys = Object.keys(free);
+      if (!freeKeys.length) {
+        freeTextContainer.textContent = 'No open-ended responses yet.';
+      } else {
+        freeTextContainer.innerHTML = '';
+        for (const key of freeKeys) {
+          const section = document.createElement('div');
+          section.style.marginBottom = '0.75rem';
+
+          const title = document.createElement('div');
+          title.innerHTML = `<strong>${prettyLabelForKey(key)}</strong> <span class="pill free">open-ended</span>`;
+          section.appendChild(title);
+
+          const list = document.createElement('div');
+          list.className = 'free-text-container';
+
+          for (const text of free[key]) {
+            const item = document.createElement('div');
+            item.className = 'free-text-item';
+            item.textContent = text;
+            list.appendChild(item);
+          }
+
+          section.appendChild(list);
+          freeTextContainer.appendChild(section);
+        }
+      }
+
+      // Clear any existing chart
+      if (chartInstance) {
+        chartInstance.destroy();
+        chartInstance = null;
+      }
+    }
+
+    function updateChartForSelection() {
+      if (!currentSummary) return;
+      const key = questionSelect.value;
+      if (!key) {
+        if (chartInstance) {
+          chartInstance.destroy();
+          chartInstance = null;
+        }
+        return;
+      }
+
+      const q = currentSummary.questions[key];
+      if (!q || q.type !== 'scale') return;
+
+      const labels = ['1', '2', '3', '4', '5'];
+      const data = labels.map(l => q.counts && q.counts[l] ? q.counts[l] : 0);
+
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      chartInstance = new Chart(chartCanvas.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: prettyLabelForKey(key),
+            data
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            title: {
+              display: true,
+              text: prettyLabelForKey(key)
+            }
+          },
+          scales: {
+            x: {
+              title: { display: true, text: 'Response (1–5)' }
+            },
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: 'Number of responses' },
+              ticks: { precision: 0 }
+            }
+          }
+        }
+      });
+    }
+
+    loadBtn.addEventListener('click', loadData);
+    questionSelect.addEventListener('change', updateChartForSelection);
+    printBtn.addEventListener('click', () => window.print());
+  </script>
+</body>
+</html>
