@@ -80,6 +80,71 @@ function validatePayload(payload) {
   }
   return null;
 }
+// --------- Admin summary helper ---------
+function computeSurveySummary(submissionRows) {
+  const questions = {};
+  const freeText = {};
+  let totalSubmissions = submissionRows.length;
+
+  for (const row of submissionRows) {
+    const payload = row.payload || {};
+    for (const [key, value] of Object.entries(payload)) {
+      // Treat anything ending in "_free" as open-ended text
+      if (key.endsWith('_free')) {
+        if (!freeText[key]) freeText[key] = [];
+        if (value && typeof value === 'string') {
+          freeText[key].push(value);
+        }
+        continue;
+      }
+
+      // Ignore empty/NA
+      if (value === '' || value === null || value === undefined || value === 'na' || value === 'N/A') {
+        continue;
+      }
+
+      // Try to parse a numeric 1–5 response
+      const num = Number(value);
+      const isScale = !Number.isNaN(num) && num >= 1 && num <= 5;
+
+      if (!questions[key]) {
+        questions[key] = {
+          key,
+          responses: 0,
+          sum: 0,
+          counts: { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 },
+          type: isScale ? 'scale' : 'other'
+        };
+      }
+
+      if (isScale) {
+        questions[key].responses += 1;
+        questions[key].sum += num;
+        const bucket = String(num);
+        questions[key].counts[bucket] = (questions[key].counts[bucket] || 0) + 1;
+      } else {
+        // Non-numeric, non-free fields → we can still count them as "other"
+        questions[key].type = 'other';
+      }
+    }
+  }
+
+  // Compute averages
+  for (const q of Object.values(questions)) {
+    if (q.type === 'scale' && q.responses > 0) {
+      q.average = q.sum / q.responses;
+    } else {
+      q.average = null;
+    }
+  }
+
+  return {
+    surveyId: SURVEY_ID,
+    totalSubmissions,
+    questions,
+    freeText
+  };
+}
 
 // --------- Routes ---------
 app.get('/health', async (_req, res) => {
