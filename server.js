@@ -241,6 +241,31 @@ app.get('/admin/reset', async (req, res) => {
       .json({ error: 'server_error', message: String(err) });
   }
 });
+// --- Admin summary endpoint for dashboard (read-only) ---
+app.get('/admin/summary', async (req, res) => {
+  try {
+    if (!ADMIN_TOKEN) {
+      return res.status(500).json({ error: 'admin_token_not_set' });
+    }
+
+    const token = req.query.token;
+    if (token !== ADMIN_TOKEN) {
+      return res.status(403).json({ error: 'forbidden' });
+    }
+
+    await ensureSchema();
+    const result = await pool.query(
+      'SELECT payload FROM submissions WHERE survey_id = $1',
+      [SURVEY_ID]
+    );
+
+    const summary = computeSurveySummary(result.rows);
+    return res.json({ ok: true, summary });
+  } catch (err) {
+    console.error('Admin summary error:', err);
+    return res.status(500).json({ ok: false, error: 'server_error' });
+  }
+});
 
 // 404
 app.use((_req, res) => {
