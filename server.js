@@ -53,6 +53,10 @@ app.use(cors({ origin: '*' })); // later you can restrict to your domain
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan('tiny'));
 
+// Serve static files (frontend + admin) from /public
+const path = require('path');
+app.use(express.static(path.join(__dirname, 'public')));
+
 // --------- Helpers ---------
 function getClientIp(req) {
   // With trust proxy, req.ip should be the left-most X-Forwarded-For
