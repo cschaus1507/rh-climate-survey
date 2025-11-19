@@ -259,28 +259,33 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Free-text responses ---
-    renderFreeText(summary.freeText || {});
-  }
-
   function renderFreeText(freeTextObj) {
     freeContent.innerHTML = '';
 
-    const items = Object.values(freeTextObj || {});
-    if (!items.length) {
+    // freeTextObj is in the form:
+    // {
+    //   "community_free_elem": ["text 1", "text 2"],
+    //   "safety_free_hs": ["another comment"]
+    // }
+    const entries = Object.entries(freeTextObj || {});
+
+    if (!entries.length) {
       freeCard.hidden = true;
       return;
     }
 
-    // Normalize into array of { meta, responses[] }
-    const rows = items.map(item => {
-      const key = item.key || item.questionKey || item.id || '';
-      const meta = parseQuestionMeta(key);
-
-      // Try a few common property names for arrays of responses
-      let responses = item.values || item.responses || item.texts || item.list || [];
-      if (!Array.isArray(responses)) {
-        responses = [String(responses)];
+    const rows = entries.map(([key, rawResponses]) => {
+      // Normalize responses to an array of strings
+      let responses;
+      if (Array.isArray(rawResponses)) {
+        responses = rawResponses.map(String);
+      } else if (rawResponses == null) {
+        responses = [];
+      } else {
+        responses = [String(rawResponses)];
       }
+
+      const meta = parseQuestionMeta(key);
 
       return {
         key,
@@ -298,6 +303,7 @@ window.addEventListener('DOMContentLoaded', () => {
       return a.key.localeCompare(b.key);
     });
 
+    // Render
     for (const row of rows) {
       const wrapper = document.createElement('div');
       wrapper.className = 'free-section';
@@ -309,7 +315,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
       const metaLine = document.createElement('div');
       metaLine.className = 'free-meta';
-      metaLine.innerHTML = `<code>${row.key}</code> · ${row.responses.length} response${row.responses.length === 1 ? '' : 's'}`;
+      metaLine.innerHTML =
+        `<code>${row.key}</code> · ${row.responses.length} response` +
+        (row.responses.length === 1 ? '' : 's');
       wrapper.appendChild(metaLine);
 
       const ul = document.createElement('ul');
