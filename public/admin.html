@@ -5,144 +5,326 @@
   <title>Roy-Hart Climate Survey – Admin</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
+    :root {
+      --purple: #6a3bbf;
+      --purple-dark: #4a2790;
+      --purple-light: #f4ecff;
+      --border: #e0e0e0;
+      --text-main: #1f2933;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
+      margin: 0;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      margin: 0;
-      background: #ffffff;
-      color: #111827;
+      background: #f7f7fb;
+      color: var(--text-main);
     }
+
     header {
-      background: #5a3c92;
+      background: var(--purple);
       color: white;
-      padding: 1rem 1.5rem;
+      padding: 16px 24px;
+      font-size: 20px;
+      font-weight: 600;
     }
-    header h1 {
-      margin: 0;
-      font-size: 1.3rem;
-    }
+
     main {
-      max-width: 1000px;
-      margin: 1.5rem auto;
-      padding: 0 1rem 2rem;
+      max-width: 1100px;
+      margin: 24px auto 40px auto;
+      padding: 0 16px;
     }
+
     .card {
-      background: #ffffff;
-      border-radius: 0.75rem;
-      border: 1px solid #e5e7eb;
-      padding: 1rem 1.25rem;
-      margin-bottom: 1rem;
+      background: white;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 16px rgba(15, 23, 42, 0.04);
+      border: 1px solid var(--border);
     }
+
+    h2 {
+      margin: 0 0 12px 0;
+      font-size: 18px;
+    }
+
+    h3 {
+      margin: 16px 0 8px 0;
+      font-size: 16px;
+    }
+
+    .field-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
     label {
-      display: block;
-      font-size: 0.9rem;
-      margin-bottom: 0.25rem;
+      font-size: 14px;
+      font-weight: 500;
     }
-    input[type="password"] {
-      padding: 0.35rem 0.5rem;
-      border-radius: 0.5rem;
-      border: 1px solid #d1d5db;
-      font-size: 0.9rem;
-      width: 260px;
-      max-width: 100%;
+
+    input[type="password"],
+    input[type="text"] {
+      flex: 1 1 220px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid #d0d0dd;
+      font-size: 14px;
+      outline: none;
     }
+
+    input[type="password"]:focus,
+    input[type="text"]:focus {
+      border-color: var(--purple);
+      box-shadow: 0 0 0 1px rgba(106, 59, 191, 0.3);
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
     button {
       border-radius: 999px;
       border: none;
-      background: #5a3c92;
-      color: white;
-      padding: 0.4rem 0.9rem;
-      font-size: 0.9rem;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: 500;
       cursor: pointer;
-      margin-left: 0.5rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }
-    button:disabled {
-      opacity: 0.6;
-      cursor: default;
+
+    .btn-primary {
+      background: var(--purple);
+      color: white;
     }
+
+    .btn-primary:hover {
+      background: var(--purple-dark);
+    }
+
+    .btn-secondary {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    .btn-secondary:hover {
+      background: #d1d5db;
+    }
+
     .status {
-      margin-top: 0.5rem;
-      font-size: 0.85rem;
-      color: #6b7280;
+      margin-top: 8px;
+      font-size: 13px;
     }
+
     .status.error {
       color: #b91c1c;
     }
+
     .status.success {
-      color: #166534;
+      color: #047857;
     }
+
+    .chips-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+      font-size: 13px;
+    }
+
+    .chip {
+      background: var(--purple-light);
+      color: var(--purple-dark);
+      padding: 4px 8px;
+      border-radius: 999px;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 0.85rem;
-      margin-top: 0.75rem;
+      font-size: 13px;
+      margin-top: 8px;
     }
+
     th, td {
       border: 1px solid #e5e7eb;
-      padding: 0.35rem 0.5rem;
+      padding: 6px 8px;
       text-align: left;
+      vertical-align: middle;
     }
+
     th {
       background: #f3f4f6;
+      font-weight: 600;
     }
-    tr:nth-child(even) td {
-      background: #f9fafb;
+
+    tbody tr:nth-child(even) td {
+      background: #fafafa;
     }
+
     code {
-      font-size: 0.8rem;
-      background: #f3f4f6;
-      padding: 0.1rem 0.2rem;
-      border-radius: 0.25rem;
+      font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      background: #f3f4ff;
+      padding: 2px 4px;
+      border-radius: 4px;
     }
-    #debug {
-      font-size: 0.75rem;
+
+    progress {
+      width: 100%;
+      height: 10px;
+    }
+
+    .section-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 800px) {
+      .section-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .debug-box {
+      font-size: 11px;
+      background: #0f172a;
+      color: #e5e7eb;
+      padding: 8px 10px;
+      border-radius: 8px;
+      margin-top: 6px;
+      max-height: 140px;
+      overflow: auto;
       white-space: pre-wrap;
-      background: #f9fafb;
-      border-radius: 0.5rem;
-      border: 1px dashed #e5e7eb;
-      padding: 0.5rem;
-      margin-top: 0.75rem;
-      max-height: 200px;
-      overflow-y: auto;
+    }
+
+    /* PRINT STYLES */
+    @media print {
+      header, #authCard, #debugCard, .btn-secondary {
+        display: none !important;
+      }
+      body {
+        background: white;
+      }
+      main {
+        margin: 0;
+      }
+      .card {
+        box-shadow: none;
+        border: 1px solid #d1d5db;
+        page-break-inside: avoid;
+      }
     }
   </style>
 </head>
+
 <body>
-  <header>
-    <h1>Roy-Hart Climate Survey – Admin</h1>
-  </header>
+  <header>Roy-Hart Climate Survey – Admin</header>
 
   <main>
-    <section class="card">
-      <label for="adminToken">Admin token (must match ADMIN_TOKEN in Render)</label>
-      <input id="adminToken" type="password" placeholder="Enter admin token" />
-      <button id="loadBtn" type="button">Load summary</button>
-      <div id="status" class="status"></div>
-      <div id="debug"></div>
+    <!-- Auth / controls -->
+    <section class="card" id="authCard">
+      <h2>Admin Access</h2>
+      <div class="field-row">
+        <label for="adminToken">Admin token (must match <code>ADMIN_TOKEN</code> in Render)</label>
+        <input id="adminToken" type="password" placeholder="Enter admin token" />
+      </div>
+      <div class="btn-row">
+        <button id="loadBtn" class="btn-primary">Load summary</button>
+        <button id="printBtn" class="btn-secondary" type="button">Print this report</button>
+      </div>
+      <p id="status" class="status"></p>
     </section>
 
-    <section class="card" id="summaryCard" style="display:none;">
-      <h2 style="margin-top:0;">Summary</h2>
-      <p><strong>Survey ID:</strong> <span id="surveyId"></span></p>
-      <p><strong>Total submissions:</strong> <span id="totalSubmissions"></span></p>
+    <!-- Overview -->
+    <section class="card" id="overviewCard" hidden>
+      <h2>Survey Overview</h2>
+      <div class="chips-row">
+        <span class="chip">Survey ID: <span id="surveyId"></span></span>
+        <span class="chip">Total submissions: <span id="totalSubmissions"></span></span>
+      </div>
+    </section>
 
-      <h3>Questions (scale items)</h3>
+    <!-- By Building & Category side-by-side -->
+    <section class="section-grid">
+      <section class="card" id="buildingCard" hidden>
+        <h2>By Building</h2>
+        <p style="font-size: 13px; margin-top: 0;">
+          Averages are across all scale questions for that building.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Building</th>
+              <th>Total responses</th>
+              <th>Average (1–5)</th>
+            </tr>
+          </thead>
+          <tbody id="buildingBody"></tbody>
+        </table>
+      </section>
+
+      <section class="card" id="categoryCard" hidden>
+        <h2>By Category</h2>
+        <p style="font-size: 13px; margin-top: 0;">
+          Categories follow the survey’s family engagement standards.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Total responses</th>
+              <th>Average (1–5)</th>
+            </tr>
+          </thead>
+          <tbody id="categoryBody"></tbody>
+        </table>
+      </section>
+    </section>
+
+    <!-- Detailed questions -->
+    <section class="card" id="questionsCard" hidden>
+      <h2>By Question</h2>
+      <p style="font-size: 13px; margin-top: 0;">
+        One row per question + building. Use the browser’s print function for hard copies.
+      </p>
       <table>
         <thead>
           <tr>
-            <th>Key</th>
+            <th>Category</th>
+            <th>Building</th>
+            <th>Question key</th>
             <th>Responses</th>
-            <th>Average (1–5)</th>
-            <th>Counts (1–5)</th>
+            <th>Average</th>
+            <th>Distribution (1–5)</th>
+            <th>Graph</th>
           </tr>
         </thead>
-        <tbody id="questionsBody">
-          <!-- filled by JS -->
-        </tbody>
+        <tbody id="questionsBody"></tbody>
       </table>
+    </section>
+
+    <!-- Debug / dev info -->
+    <section class="card" id="debugCard">
+      <h3 style="margin-top:0;">Debug</h3>
+      <div id="debug" class="debug-box"></div>
     </section>
   </main>
 
-  <!-- External JS file (allowed by Helmet CSP) -->
+  <!-- External JS (no inline JS for CSP) -->
   <script src="/admin.js" defer></script>
 </body>
 </html>
