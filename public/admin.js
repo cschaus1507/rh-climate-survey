@@ -1,281 +1,199 @@
-// Roy-Hart Climate Survey Admin JS
-// Talks to /admin/summary and renders overview, building/category aggregates,
-// per-question details, and open-ended ("free") responses.
+// admin.js – Roy-Hart Climate Survey admin dashboard
 
-window.addEventListener('DOMContentLoaded', () => {
+(function () {
+  const tokenInput = document.getElementById('admin-token');
+  const loadBtn = document.getElementById('load-summary');
   const statusEl = document.getElementById('status');
-  const loadBtn = document.getElementById('loadBtn');
-  const printBtn = document.getElementById('printBtn');
-  const adminInput = document.getElementById('adminToken');
+  const summaryCard = document.getElementById('summary-card');
+  const summaryMeta = document.getElementById('summary-meta');
+  const summaryContent = document.getElementById('summary-content');
+  const freeCard = document.getElementById('free-card');
+  const freeContent = document.getElementById('free-content');
 
-  const overviewCard = document.getElementById('overviewCard');
-  const surveyIdEl = document.getElementById('surveyId');
-  const totalSubmissionsEl = document.getElementById('totalSubmissions');
+  // Restore token from localStorage if available
+  const STORAGE_KEY = 'rh_climate_admin_token';
+  const savedToken = window.localStorage.getItem(STORAGE_KEY) || '';
+  if (savedToken) tokenInput.value = savedToken;
 
-  const buildingCard = document.getElementById('buildingCard');
-  const buildingBody = document.getElementById('buildingBody');
-
-  const categoryCard = document.getElementById('categoryCard');
-  const categoryBody = document.getElementById('categoryBody');
-
-  const questionsCard = document.getElementById('questionsCard');
-  const questionsBody = document.getElementById('questionsBody');
-
-  const freeCard = document.getElementById('freeCard');
-  const freeContent = document.getElementById('freeContent');
-
-  function setStatus(msg, isError) {
-    statusEl.textContent = msg || '';
-    let cls = 'status';
-    if (msg) cls += isError ? ' error' : ' success';
-    statusEl.className = cls;
-  }
-
-  const CATEGORY_LABELS = {
-    community: 'School Community',
-    comm: 'Communicating Effectively',
-    success: 'Supporting Student Success',
-    advocacy: 'Speaking Up for Every Child',
-    decision: 'Decision Making',
-    safety: 'School Safety'
-  };
-
-  const BUILDING_LABELS = {
-    elem: 'Elementary School',
-    ms: 'Middle School',
-    hs: 'High School',
-    na: 'All / N/A'
-  };
-
-  function parseQuestionMeta(key) {
-    const parts = key.split('_');
-    if (parts.length < 2) {
-      return {
-        rawKey: key,
-        categoryKey: key,
-        categoryLabel: key,
-        buildingKey: 'na',
-        buildingLabel: BUILDING_LABELS.na,
-        questionId: key
-      };
-    }
-
-    const categoryKey = parts[0];
-    const buildingCode = parts[parts.length - 1];
-    const buildingKey = ['elem', 'ms', 'hs'].includes(buildingCode)
-      ? buildingCode
-      : 'na';
-
-    const questionId = parts.slice(0, parts.length - (buildingKey === 'na' ? 0 : 1)).join('_');
-    const categoryLabel = CATEGORY_LABELS[categoryKey] || categoryKey;
-    const buildingLabel = BUILDING_LABELS[buildingKey] || BUILDING_LABELS.na;
-
-    return {
-      rawKey: key,
-      categoryKey,
-      categoryLabel,
-      buildingKey,
-      buildingLabel,
-      questionId
-    };
-  }
-
-  async function loadSummary() {
-    const token = adminInput.value.trim();
+  loadBtn.addEventListener('click', () => {
+    const token = tokenInput.value.trim();
     if (!token) {
-      setStatus('Please enter your admin token.', true);
+      setStatus('Please enter a token.', 'error');
       return;
     }
+    window.localStorage.setItem(STORAGE_KEY, token);
+    fetchSummary(token);
+  });
 
-    setStatus('Loading summary…', false);
-    loadBtn.disabled = true;
+  function setStatus(msg, type) {
+    statusEl.textContent = msg || '';
+    statusEl.className = '';
+    if (type) statusEl.classList.add(type);
+  }
+
+  async function fetchSummary(token) {
+    setStatus('Loading summary…', 'info');
+    summaryCard.hidden = true;
+    freeCard.hidden = true;
 
     try {
       const url = `/admin/summary?token=${encodeURIComponent(token)}`;
-      const res = await fetch(url);
-      const text = await res.text();
-      console.log('Raw /admin/summary response:', text);
+      const resp = await fetch(url, { method: 'GET' });
 
-      if (!res.ok) {
-        setStatus('HTTP error ' + res.status + '. Check token or server.', true);
+      if (resp.status === 403) {
+        setStatus('Forbidden: token is incorrect.', 'error');
+        return;
+      }
+      if (!resp.ok) {
+        setStatus(`Server error (${resp.status}).`, 'error');
         return;
       }
 
-      let json;
-      try {
-        json = JSON.parse(text);
-      } catch (err) {
-        console.error('JSON parse error:', err);
-        setStatus('Could not parse JSON from server.', true);
+      const data = await resp.json();
+      if (!data.ok) {
+        setStatus(data.error || 'Unknown error from server.', 'error');
         return;
       }
 
-      if (!json.ok) {
-        setStatus('Server error: ' + (json.error || 'unknown'), true);
-        return;
-      }
-
-      renderSummary(json.summary);
-      setStatus('Summary loaded.', false);
+      renderSummary(data.summary);
+      renderFreeText(data.summary.freeText || {});
+      setStatus(
+        'Summary loaded. You can print this page with Ctrl+P / ⌘+P.',
+        'success'
+      );
     } catch (err) {
       console.error(err);
-      setStatus('Network error while fetching summary.', true);
-    } finally {
-      loadBtn.disabled = false;
+      setStatus('Network error while loading summary.', 'error');
     }
   }
 
+  // ------------ Summary rendering ------------
+
   function renderSummary(summary) {
-    if (!summary) return;
+    summaryCard.hidden = false;
 
-    // --- Overview ---
-    overviewCard.hidden = false;
-    surveyIdEl.textContent = summary.surveyId || '';
-    totalSubmissionsEl.textContent = summary.totalSubmissions ?? '0';
+    const total = summary.totalSubmissions || 0;
+    summaryMeta.innerHTML = `
+      <span><strong>${total}</strong> total submissions</span>
+      <span>Survey ID: <code>${summary.surveyId}</code></span>
+    `;
 
-    const questionsObj = summary.questions || {};
-    const allQuestions = Object.values(questionsObj).filter(q => q && q.type === 'scale');
+    const questions = Object.values(summary.questions || {});
+    if (!questions.length) {
+      summaryContent.innerHTML = '<p>No scale-question data yet.</p>';
+      return;
+    }
 
-    // --- By building ---
-    const buildingStats = {};
-    for (const q of allQuestions) {
+    // Group questions by category & building
+    const groups = new Map();
+    for (const q of questions) {
       const meta = parseQuestionMeta(q.key);
-      if (meta.buildingKey === 'na') continue; // skip non-building-specific
-
-      const b = buildingStats[meta.buildingKey] || {
-        name: meta.buildingLabel,
-        responses: 0,
-        sum: 0
-      };
-      b.responses += q.responses || 0;
-      b.sum += q.sum || 0;
-      buildingStats[meta.buildingKey] = b;
-    }
-
-    buildingBody.innerHTML = '';
-    const buildingRows = Object.values(buildingStats);
-    if (buildingRows.length) {
-      buildingRows.sort((a, b) => a.name.localeCompare(b.name));
-      for (const b of buildingRows) {
-        const avg = b.responses ? (b.sum / b.responses) : null;
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${b.name}</td>
-          <td>${b.responses}</td>
-          <td>${avg != null ? avg.toFixed(2) : ''}</td>
-        `;
-        buildingBody.appendChild(tr);
-      }
-      buildingCard.hidden = false;
-    } else {
-      buildingCard.hidden = true;
-    }
-
-    // --- By category ---
-    const categoryStats = {};
-    for (const q of allQuestions) {
-      const meta = parseQuestionMeta(q.key);
-      const c = categoryStats[meta.categoryKey] || {
-        name: meta.categoryLabel,
-        responses: 0,
-        sum: 0
-      };
-      c.responses += q.responses || 0;
-      c.sum += q.sum || 0;
-      categoryStats[meta.categoryKey] = c;
-    }
-
-    categoryBody.innerHTML = '';
-    const categoryRows = Object.values(categoryStats);
-    if (categoryRows.length) {
-      categoryRows.sort((a, b) => a.name.localeCompare(b.name));
-      for (const c of categoryRows) {
-        const avg = c.responses ? (c.sum / c.responses) : null;
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${c.name}</td>
-          <td>${c.responses}</td>
-          <td>${avg != null ? avg.toFixed(2) : ''}</td>
-        `;
-        categoryBody.appendChild(tr);
-      }
-      categoryCard.hidden = false;
-    } else {
-      categoryCard.hidden = true;
-    }
-
-    // --- By question ---
-    questionsBody.innerHTML = '';
-    if (allQuestions.length) {
-      const rows = allQuestions.map(q => {
-        const meta = parseQuestionMeta(q.key);
-        const counts = q.counts || {};
-        const countsStr =
-          '1:' + (counts['1'] || 0) + '  ' +
-          '2:' + (counts['2'] || 0) + '  ' +
-          '3:' + (counts['3'] || 0) + '  ' +
-          '4:' + (counts['4'] || 0) + '  ' +
-          '5:' + (counts['5'] || 0);
-        const avg = q.average != null ? q.average : (q.responses ? q.sum / q.responses : null);
-
-        return {
+      const groupKey = `${meta.categoryLabel}|${meta.buildingLabel}`;
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, {
           categoryLabel: meta.categoryLabel,
           buildingLabel: meta.buildingLabel,
-          key: q.key,
-          responses: q.responses || 0,
-          average: avg,
-          countsStr
-        };
-      });
-
-      rows.sort((a, b) => {
-        const c = a.categoryLabel.localeCompare(b.categoryLabel);
-        if (c !== 0) return c;
-        const bld = a.buildingLabel.localeCompare(b.buildingLabel);
-        if (bld !== 0) return bld;
-        return a.key.localeCompare(b.key);
-      });
-
-      for (const r of rows) {
-        const tr = document.createElement('tr');
-        const avgDisplay = r.average != null ? r.average.toFixed(2) : '';
-        const avgVal = r.average != null ? r.average : 0;
-
-        tr.innerHTML = `
-          <td>${r.categoryLabel}</td>
-          <td>${r.buildingLabel}</td>
-          <td><code>${r.key}</code></td>
-          <td>${r.responses}</td>
-          <td>${avgDisplay}</td>
-          <td>${r.countsStr}</td>
-          <td><progress max="5" value="${avgVal.toFixed(2)}"></progress></td>
-        `;
-        questionsBody.appendChild(tr);
+          questions: [],
+        });
       }
-
-      questionsCard.hidden = false;
-    } else {
-      questionsCard.hidden = true;
+      groups.get(groupKey).questions.push(q);
     }
 
-    // --- Free-text responses ---
+    // Sort groups for stable layout
+    const groupList = Array.from(groups.values()).sort((a, b) => {
+      const c = a.categoryLabel.localeCompare(b.categoryLabel);
+      if (c !== 0) return c;
+      return a.buildingLabel.localeCompare(b.buildingLabel);
+    });
+
+    const container = document.createElement('div');
+    container.className = 'grid';
+
+    for (const group of groupList) {
+      const card = document.createElement('div');
+      card.className = 'section-card';
+
+      const title = document.createElement('div');
+      title.className = 'section-title';
+      title.textContent = group.categoryLabel;
+      card.appendChild(title);
+
+      const subtitle = document.createElement('div');
+      subtitle.className = 'section-subtitle';
+      subtitle.textContent = group.buildingLabel;
+      card.appendChild(subtitle);
+
+      // Each question in this group
+      group.questions
+        .slice()
+        .sort((a, b) => a.key.localeCompare(b.key))
+        .forEach((q) => {
+          card.appendChild(renderQuestionRow(q));
+        });
+
+      container.appendChild(card);
+    }
+
+    summaryContent.innerHTML = '';
+    summaryContent.appendChild(container);
+  }
+
+  function renderQuestionRow(q) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'question-row';
+
+    const label = document.createElement('div');
+    label.className = 'question-label';
+    label.textContent = q.key;
+    wrapper.appendChild(label);
+
+    const barRow = document.createElement('div');
+    barRow.className = 'bar-row';
+
+    const barTrack = document.createElement('div');
+    barTrack.className = 'bar-track';
+
+    const counts = q.counts || {};
+    const maxCount = Math.max(1, ...[1, 2, 3, 4, 5].map((k) => counts[k] || 0));
+
+    [1, 2, 3, 4, 5].forEach((score) => {
+      const count = counts[score] || 0;
+      const segment = document.createElement('div');
+      segment.className = `bar bar-${score}`;
+      const pct = (count / maxCount) * 100;
+      segment.style.width = `${pct}%`;
+      barTrack.appendChild(segment);
+    });
+
+    const barLabel = document.createElement('div');
+    barLabel.className = 'bar-label';
+
+    const avg =
+      typeof q.average === 'number'
+        ? q.average.toFixed(2)
+        : '–';
+
+    barLabel.textContent = `${q.responses || 0} resp · avg ${avg}`;
+
+    barRow.appendChild(barTrack);
+    barRow.appendChild(barLabel);
+
+    wrapper.appendChild(barRow);
+    return wrapper;
+  }
+
+  // ------------ Free-text rendering ------------
+
   function renderFreeText(freeTextObj) {
     freeContent.innerHTML = '';
 
-    // freeTextObj is in the form:
-    // {
-    //   "community_free_elem": ["text 1", "text 2"],
-    //   "safety_free_hs": ["another comment"]
-    // }
     const entries = Object.entries(freeTextObj || {});
-
     if (!entries.length) {
       freeCard.hidden = true;
       return;
     }
 
     const rows = entries.map(([key, rawResponses]) => {
-      // Normalize responses to an array of strings
       let responses;
       if (Array.isArray(rawResponses)) {
         responses = rawResponses.map(String);
@@ -286,24 +204,18 @@ window.addEventListener('DOMContentLoaded', () => {
       }
 
       const meta = parseQuestionMeta(key);
-
-      return {
-        key,
-        meta,
-        responses
-      };
+      return { key, meta, responses };
     });
 
     // Sort by category, then building, then key
     rows.sort((a, b) => {
       const c = a.meta.categoryLabel.localeCompare(b.meta.categoryLabel);
       if (c !== 0) return c;
-      const bld = a.meta.buildingLabel.localeCompare(b.meta.buildingLabel);
-      if (bld !== 0) return bld;
+      const d = a.meta.buildingLabel.localeCompare(b.meta.buildingLabel);
+      if (d !== 0) return d;
       return a.key.localeCompare(b.key);
     });
 
-    // Render
     for (const row of rows) {
       const wrapper = document.createElement('div');
       wrapper.className = 'free-section';
@@ -322,7 +234,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
       const ul = document.createElement('ul');
       ul.className = 'free-list';
-      row.responses.forEach(text => {
+      row.responses.forEach((text) => {
         const li = document.createElement('li');
         li.textContent = text;
         ul.appendChild(li);
@@ -335,9 +247,37 @@ window.addEventListener('DOMContentLoaded', () => {
     freeCard.hidden = false;
   }
 
-  // Wire up buttons
-  loadBtn.addEventListener('click', loadSummary);
-  printBtn.addEventListener('click', () => window.print());
+  // ------------ Helpers ------------
 
-  console.log('Admin script initialized.');
-});
+  function parseQuestionMeta(key) {
+    // Building suffix
+    let buildingLabel = 'All / N/A';
+    let base = key;
+
+    if (key.endsWith('_elem')) {
+      buildingLabel = 'Elementary';
+      base = key.replace(/_elem$/, '');
+    } else if (key.endsWith('_ms')) {
+      buildingLabel = 'Middle School';
+      base = key.replace(/_ms$/, '');
+    } else if (key.endsWith('_hs')) {
+      buildingLabel = 'High School';
+      base = key.replace(/_hs$/, '');
+    }
+
+    // Category from prefix
+    const cat = base.split('_')[0]; // community, comm, success, advocacy, decision, safety
+    const categoryMap = {
+      community: 'School Community',
+      comm: 'Communicating Effectively',
+      success: 'Supporting Student Success',
+      advocacy: 'Speaking Up for Every Child',
+      decision: 'Decision Making',
+      safety: 'School Safety',
+    };
+
+    const categoryLabel = categoryMap[cat] || 'Other';
+
+    return { categoryLabel, buildingLabel };
+  }
+})();
