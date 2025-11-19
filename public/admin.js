@@ -1,9 +1,9 @@
 // Roy-Hart Climate Survey Admin JS
-// Talks to /admin/summary and renders overview, building/category aggregates, and per-question details.
+// Talks to /admin/summary and renders overview, building/category aggregates,
+// per-question details, and open-ended ("free") responses.
 
 window.addEventListener('DOMContentLoaded', () => {
   const statusEl = document.getElementById('status');
-  const debugEl = document.getElementById('debug');
   const loadBtn = document.getElementById('loadBtn');
   const printBtn = document.getElementById('printBtn');
   const adminInput = document.getElementById('adminToken');
@@ -21,15 +21,14 @@ window.addEventListener('DOMContentLoaded', () => {
   const questionsCard = document.getElementById('questionsCard');
   const questionsBody = document.getElementById('questionsBody');
 
+  const freeCard = document.getElementById('freeCard');
+  const freeContent = document.getElementById('freeContent');
+
   function setStatus(msg, isError) {
     statusEl.textContent = msg || '';
     let cls = 'status';
     if (msg) cls += isError ? ' error' : ' success';
     statusEl.className = cls;
-  }
-
-  function setDebug(msg) {
-    debugEl.textContent = msg || '';
   }
 
   const CATEGORY_LABELS = {
@@ -89,7 +88,6 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     setStatus('Loading summary…', false);
-    setDebug('Fetching /admin/summary …');
     loadBtn.disabled = true;
 
     try {
@@ -97,7 +95,6 @@ window.addEventListener('DOMContentLoaded', () => {
       const res = await fetch(url);
       const text = await res.text();
       console.log('Raw /admin/summary response:', text);
-      setDebug('HTTP ' + res.status + '\n' + text);
 
       if (!res.ok) {
         setStatus('HTTP error ' + res.status + '. Check token or server.', true);
@@ -122,7 +119,6 @@ window.addEventListener('DOMContentLoaded', () => {
       setStatus('Summary loaded.', false);
     } catch (err) {
       console.error(err);
-      setDebug(String(err));
       setStatus('Network error while fetching summary.', true);
     } finally {
       loadBtn.disabled = false;
@@ -261,6 +257,74 @@ window.addEventListener('DOMContentLoaded', () => {
     } else {
       questionsCard.hidden = true;
     }
+
+    // --- Free-text responses ---
+    renderFreeText(summary.freeText || {});
+  }
+
+  function renderFreeText(freeTextObj) {
+    freeContent.innerHTML = '';
+
+    const items = Object.values(freeTextObj || {});
+    if (!items.length) {
+      freeCard.hidden = true;
+      return;
+    }
+
+    // Normalize into array of { meta, responses[] }
+    const rows = items.map(item => {
+      const key = item.key || item.questionKey || item.id || '';
+      const meta = parseQuestionMeta(key);
+
+      // Try a few common property names for arrays of responses
+      let responses = item.values || item.responses || item.texts || item.list || [];
+      if (!Array.isArray(responses)) {
+        responses = [String(responses)];
+      }
+
+      return {
+        key,
+        meta,
+        responses
+      };
+    });
+
+    // Sort by category, then building, then key
+    rows.sort((a, b) => {
+      const c = a.meta.categoryLabel.localeCompare(b.meta.categoryLabel);
+      if (c !== 0) return c;
+      const bld = a.meta.buildingLabel.localeCompare(b.meta.buildingLabel);
+      if (bld !== 0) return bld;
+      return a.key.localeCompare(b.key);
+    });
+
+    for (const row of rows) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'free-section';
+
+      const header = document.createElement('div');
+      header.className = 'free-header';
+      header.textContent = `${row.meta.categoryLabel} – ${row.meta.buildingLabel}`;
+      wrapper.appendChild(header);
+
+      const metaLine = document.createElement('div');
+      metaLine.className = 'free-meta';
+      metaLine.innerHTML = `<code>${row.key}</code> · ${row.responses.length} response${row.responses.length === 1 ? '' : 's'}`;
+      wrapper.appendChild(metaLine);
+
+      const ul = document.createElement('ul');
+      ul.className = 'free-list';
+      row.responses.forEach(text => {
+        const li = document.createElement('li');
+        li.textContent = text;
+        ul.appendChild(li);
+      });
+      wrapper.appendChild(ul);
+
+      freeContent.appendChild(wrapper);
+    }
+
+    freeCard.hidden = false;
   }
 
   // Wire up buttons
@@ -268,5 +332,4 @@ window.addEventListener('DOMContentLoaded', () => {
   printBtn.addEventListener('click', () => window.print());
 
   console.log('Admin script initialized.');
-  setDebug('Ready. Enter your admin token and click "Load summary".');
 });
