@@ -199,21 +199,38 @@
       }
     }
 
-    .debug-box {
-      font-size: 11px;
-      background: #0f172a;
-      color: #e5e7eb;
-      padding: 8px 10px;
-      border-radius: 8px;
+    /* Free-text layout */
+    .free-section {
       margin-top: 6px;
-      max-height: 140px;
-      overflow: auto;
-      white-space: pre-wrap;
+      border-top: 1px solid #e5e7eb;
+      padding-top: 8px;
+    }
+
+    .free-header {
+      font-weight: 600;
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
+
+    .free-meta {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 4px;
+    }
+
+    .free-list {
+      margin: 0 0 4px 0;
+      padding-left: 18px;
+      font-size: 13px;
+    }
+
+    .free-list li {
+      margin-bottom: 2px;
     }
 
     /* PRINT STYLES */
     @media print {
-      header, #authCard, #debugCard, .btn-secondary {
+      header, #authCard, .btn-secondary {
         display: none !important;
       }
       body {
@@ -317,10 +334,13 @@
       </table>
     </section>
 
-    <!-- Debug / dev info -->
-    <section class="card" id="debugCard">
-      <h3 style="margin-top:0;">Debug</h3>
-      <div id="debug" class="debug-box"></div>
+    <!-- Free-text responses -->
+    <section class="card" id="freeCard" hidden>
+      <h2>Open-ended Responses</h2>
+      <p style="font-size: 13px; margin-top: 0;">
+        Grouped by question and building. These are exactly as written by families, ready to print or copy into reports.
+      </p>
+      <div id="freeContent"></div>
     </section>
   </main>
 
