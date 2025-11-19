@@ -1,20 +1,84 @@
-window.addEventListener('DOMContentLoaded', function () {
+// Roy-Hart Climate Survey Admin JS
+// Talks to /admin/summary and renders overview, building/category aggregates, and per-question details.
+
+window.addEventListener('DOMContentLoaded', () => {
   const statusEl = document.getElementById('status');
   const debugEl = document.getElementById('debug');
   const loadBtn = document.getElementById('loadBtn');
+  const printBtn = document.getElementById('printBtn');
   const adminInput = document.getElementById('adminToken');
-  const summaryCard = document.getElementById('summaryCard');
+
+  const overviewCard = document.getElementById('overviewCard');
   const surveyIdEl = document.getElementById('surveyId');
   const totalSubmissionsEl = document.getElementById('totalSubmissions');
+
+  const buildingCard = document.getElementById('buildingCard');
+  const buildingBody = document.getElementById('buildingBody');
+
+  const categoryCard = document.getElementById('categoryCard');
+  const categoryBody = document.getElementById('categoryBody');
+
+  const questionsCard = document.getElementById('questionsCard');
   const questionsBody = document.getElementById('questionsBody');
 
   function setStatus(msg, isError) {
     statusEl.textContent = msg || '';
-    statusEl.className = 'status' + (isError ? ' error' : ' success');
+    let cls = 'status';
+    if (msg) cls += isError ? ' error' : ' success';
+    statusEl.className = cls;
   }
 
   function setDebug(msg) {
     debugEl.textContent = msg || '';
+  }
+
+  const CATEGORY_LABELS = {
+    community: 'School Community',
+    comm: 'Communicating Effectively',
+    success: 'Supporting Student Success',
+    advocacy: 'Speaking Up for Every Child',
+    decision: 'Decision Making',
+    safety: 'School Safety'
+  };
+
+  const BUILDING_LABELS = {
+    elem: 'Elementary School',
+    ms: 'Middle School',
+    hs: 'High School',
+    na: 'All / N/A'
+  };
+
+  function parseQuestionMeta(key) {
+    const parts = key.split('_');
+    if (parts.length < 2) {
+      return {
+        rawKey: key,
+        categoryKey: key,
+        categoryLabel: key,
+        buildingKey: 'na',
+        buildingLabel: BUILDING_LABELS.na,
+        questionId: key
+      };
+    }
+
+    const categoryKey = parts[0];
+    const buildingCode = parts[parts.length - 1];
+    const buildingKey = ['elem', 'ms', 'hs'].includes(buildingCode)
+      ? buildingCode
+      : 'na';
+
+    const questionId = parts.slice(0, parts.length - (buildingKey === 'na' ? 0 : 1)).join('_');
+    const categoryLabel = CATEGORY_LABELS[categoryKey] || categoryKey;
+    const buildingLabel = BUILDING_LABELS[buildingKey] || BUILDING_LABELS.na;
+
+    return {
+      rawKey: key,
+      categoryKey,
+      categoryLabel,
+      buildingKey,
+      buildingLabel,
+      questionId
+    };
   }
 
   async function loadSummary() {
@@ -24,49 +88,42 @@ window.addEventListener('DOMContentLoaded', function () {
       return;
     }
 
-    setStatus('Loading...', false);
-    setDebug('Button clicked. Fetching /admin/summary…');
+    setStatus('Loading summary…', false);
+    setDebug('Fetching /admin/summary …');
     loadBtn.disabled = true;
-    summaryCard.style.display = 'none';
 
     try {
       const url = `/admin/summary?token=${encodeURIComponent(token)}`;
-      setDebug('Fetching: ' + url);
-
       const res = await fetch(url);
       const text = await res.text();
-
       console.log('Raw /admin/summary response:', text);
       setDebug('HTTP ' + res.status + '\n' + text);
 
       if (!res.ok) {
-        setStatus('HTTP error ' + res.status, true);
-        loadBtn.disabled = false;
+        setStatus('HTTP error ' + res.status + '. Check token or server.', true);
         return;
       }
 
       let json;
       try {
         json = JSON.parse(text);
-      } catch (e) {
-        console.error('JSON parse error:', e);
-        setStatus('Could not parse JSON from server. Check console.', true);
-        loadBtn.disabled = false;
+      } catch (err) {
+        console.error('JSON parse error:', err);
+        setStatus('Could not parse JSON from server.', true);
         return;
       }
 
       if (!json.ok) {
-        setStatus('Server reported error: ' + (json.error || 'unknown'), true);
-        loadBtn.disabled = false;
+        setStatus('Server error: ' + (json.error || 'unknown'), true);
         return;
       }
 
       renderSummary(json.summary);
-      setStatus('Loaded summary successfully.', false);
+      setStatus('Summary loaded.', false);
     } catch (err) {
       console.error(err);
       setDebug(String(err));
-      setStatus('Network error, see console.', true);
+      setStatus('Network error while fetching summary.', true);
     } finally {
       loadBtn.disabled = false;
     }
@@ -74,45 +131,142 @@ window.addEventListener('DOMContentLoaded', function () {
 
   function renderSummary(summary) {
     if (!summary) return;
-    summaryCard.style.display = 'block';
 
-    surveyIdEl.textContent = summary.surveyId;
-    totalSubmissionsEl.textContent = summary.totalSubmissions;
+    // --- Overview ---
+    overviewCard.hidden = false;
+    surveyIdEl.textContent = summary.surveyId || '';
+    totalSubmissionsEl.textContent = summary.totalSubmissions ?? '0';
 
-    const qObj = summary.questions || {};
-    const questions = Object.values(qObj).filter(q => q.type === 'scale');
-    questions.sort((a, b) => a.key.localeCompare(b.key));
+    const questionsObj = summary.questions || {};
+    const allQuestions = Object.values(questionsObj).filter(q => q && q.type === 'scale');
 
-    questionsBody.innerHTML = '';
+    // --- By building ---
+    const buildingStats = {};
+    for (const q of allQuestions) {
+      const meta = parseQuestionMeta(q.key);
+      if (meta.buildingKey === 'na') continue; // skip non-building-specific
 
-    if (!questions.length) {
-      const tr = document.createElement('tr');
-      tr.innerHTML = '<td colspan="4">No scale questions found.</td>';
-      questionsBody.appendChild(tr);
-      return;
+      const b = buildingStats[meta.buildingKey] || {
+        name: meta.buildingLabel,
+        responses: 0,
+        sum: 0
+      };
+      b.responses += q.responses || 0;
+      b.sum += q.sum || 0;
+      buildingStats[meta.buildingKey] = b;
     }
 
-    for (const q of questions) {
-      const counts = q.counts || {};
-      const countsStr =
-        '1:' + (counts['1'] || 0) + ', ' +
-        '2:' + (counts['2'] || 0) + ', ' +
-        '3:' + (counts['3'] || 0) + ', ' +
-        '4:' + (counts['4'] || 0) + ', ' +
-        '5:' + (counts['5'] || 0);
+    buildingBody.innerHTML = '';
+    const buildingRows = Object.values(buildingStats);
+    if (buildingRows.length) {
+      buildingRows.sort((a, b) => a.name.localeCompare(b.name));
+      for (const b of buildingRows) {
+        const avg = b.responses ? (b.sum / b.responses) : null;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${b.name}</td>
+          <td>${b.responses}</td>
+          <td>${avg != null ? avg.toFixed(2) : ''}</td>
+        `;
+        buildingBody.appendChild(tr);
+      }
+      buildingCard.hidden = false;
+    } else {
+      buildingCard.hidden = true;
+    }
 
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td><code>${q.key}</code></td>
-        <td>${q.responses}</td>
-        <td>${q.average != null ? q.average.toFixed(2) : ''}</td>
-        <td>${countsStr}</td>
-      `;
-      questionsBody.appendChild(tr);
+    // --- By category ---
+    const categoryStats = {};
+    for (const q of allQuestions) {
+      const meta = parseQuestionMeta(q.key);
+      const c = categoryStats[meta.categoryKey] || {
+        name: meta.categoryLabel,
+        responses: 0,
+        sum: 0
+      };
+      c.responses += q.responses || 0;
+      c.sum += q.sum || 0;
+      categoryStats[meta.categoryKey] = c;
+    }
+
+    categoryBody.innerHTML = '';
+    const categoryRows = Object.values(categoryStats);
+    if (categoryRows.length) {
+      categoryRows.sort((a, b) => a.name.localeCompare(b.name));
+      for (const c of categoryRows) {
+        const avg = c.responses ? (c.sum / c.responses) : null;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${c.name}</td>
+          <td>${c.responses}</td>
+          <td>${avg != null ? avg.toFixed(2) : ''}</td>
+        `;
+        categoryBody.appendChild(tr);
+      }
+      categoryCard.hidden = false;
+    } else {
+      categoryCard.hidden = true;
+    }
+
+    // --- By question ---
+    questionsBody.innerHTML = '';
+    if (allQuestions.length) {
+      const rows = allQuestions.map(q => {
+        const meta = parseQuestionMeta(q.key);
+        const counts = q.counts || {};
+        const countsStr =
+          '1:' + (counts['1'] || 0) + '  ' +
+          '2:' + (counts['2'] || 0) + '  ' +
+          '3:' + (counts['3'] || 0) + '  ' +
+          '4:' + (counts['4'] || 0) + '  ' +
+          '5:' + (counts['5'] || 0);
+        const avg = q.average != null ? q.average : (q.responses ? q.sum / q.responses : null);
+
+        return {
+          categoryLabel: meta.categoryLabel,
+          buildingLabel: meta.buildingLabel,
+          key: q.key,
+          responses: q.responses || 0,
+          average: avg,
+          countsStr
+        };
+      });
+
+      rows.sort((a, b) => {
+        const c = a.categoryLabel.localeCompare(b.categoryLabel);
+        if (c !== 0) return c;
+        const bld = a.buildingLabel.localeCompare(b.buildingLabel);
+        if (bld !== 0) return bld;
+        return a.key.localeCompare(b.key);
+      });
+
+      for (const r of rows) {
+        const tr = document.createElement('tr');
+        const avgDisplay = r.average != null ? r.average.toFixed(2) : '';
+        const avgVal = r.average != null ? r.average : 0;
+
+        tr.innerHTML = `
+          <td>${r.categoryLabel}</td>
+          <td>${r.buildingLabel}</td>
+          <td><code>${r.key}</code></td>
+          <td>${r.responses}</td>
+          <td>${avgDisplay}</td>
+          <td>${r.countsStr}</td>
+          <td><progress max="5" value="${avgVal.toFixed(2)}"></progress></td>
+        `;
+        questionsBody.appendChild(tr);
+      }
+
+      questionsCard.hidden = false;
+    } else {
+      questionsCard.hidden = true;
     }
   }
 
-  console.log('Admin script initialized, wiring click handler.');
-  setDebug('Ready. Enter your token and click "Load summary".');
+  // Wire up buttons
   loadBtn.addEventListener('click', loadSummary);
+  printBtn.addEventListener('click', () => window.print());
+
+  console.log('Admin script initialized.');
+  setDebug('Ready. Enter your admin token and click "Load summary".');
 });
