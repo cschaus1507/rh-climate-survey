@@ -3,307 +3,345 @@
 <head>
   <meta charset="UTF-8" />
   <title>Roy-Hart Climate Survey – Admin</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     :root {
-      --purple: #6b46c1;
+      --purple: #6d28d9;
+      --purple-dark: #5b21b6;
       --purple-light: #ede9fe;
-      --purple-dark: #4c1d95;
-      --gray-bg: #f5f5f7;
+      --gray-bg: #f9fafb;
       --gray-border: #e5e7eb;
-      --text-main: #111827;
       --text-muted: #6b7280;
+      --danger: #dc2626;
+      --danger-dark: #b91c1c;
     }
 
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
 
     body {
       margin: 0;
+      padding: 0;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
         sans-serif;
       background: var(--gray-bg);
-      color: var(--text-main);
+      color: #111827;
     }
 
-    header {
-      background: var(--purple);
-      color: white;
-      padding: 16px 24px;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
-    }
-
-    header h1 {
-      margin: 0;
-      font-size: 1.3rem;
-      font-weight: 600;
-    }
-
-    main {
+    .page {
       max-width: 1100px;
-      margin: 24px auto 48px;
-      padding: 0 16px;
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+    }
+
+    .header {
+      background: linear-gradient(135deg, var(--purple), var(--purple-dark));
+      color: #fff;
+      padding: 20px 24px;
+      border-radius: 16px;
+      margin-bottom: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+    }
+
+    .header-title {
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin: 0 0 4px;
+    }
+
+    .header-subtitle {
+      margin: 0;
+      font-size: 0.9rem;
+      opacity: 0.9;
     }
 
     .card {
-      background: white;
-      border-radius: 12px;
+      background: #fff;
+      border-radius: 14px;
       border: 1px solid var(--gray-border);
-      padding: 16px 20px;
-      margin-bottom: 20px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+      padding: 16px 18px;
+      margin-bottom: 16px;
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.04);
     }
 
-    .card h2 {
-      margin: 0 0 8px;
-      font-size: 1.1rem;
+    .card-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin: 0 0 6px;
     }
 
-    .card p {
-      margin: 0;
+    .card-subtitle {
+      margin: 0 0 10px;
+      font-size: 0.8rem;
       color: var(--text-muted);
-      font-size: 0.9rem;
     }
 
-    .token-row {
+    .row {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 12px;
+      gap: 10px;
       align-items: center;
     }
 
-    .token-row input {
-      flex: 1 1 220px;
+    .row > * {
+      flex: 1 1 auto;
+    }
+
+    .token-input {
+      width: 100%;
+      max-width: 260px;
       padding: 8px 10px;
       border-radius: 999px;
       border: 1px solid var(--gray-border);
-      font-size: 0.95rem;
-    }
-
-    .token-row button {
-      border: none;
-      border-radius: 999px;
-      padding: 8px 18px;
-      background: var(--purple);
-      color: white;
-      font-weight: 500;
-      font-size: 0.95rem;
-      cursor: pointer;
-    }
-
-    .token-row button:hover {
-      background: var(--purple-dark);
-    }
-
-    #status {
-      margin-top: 8px;
-      font-size: 0.85rem;
-      color: var(--text-muted);
-    }
-
-    #status.error {
-      color: #b91c1c;
-    }
-
-    #status.success {
-      color: #047857;
-    }
-
-    .summary-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 16px;
-      margin-top: 8px;
       font-size: 0.9rem;
-      color: var(--text-muted);
     }
 
-    .summary-meta span strong {
-      color: var(--text-main);
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: background 0.15s ease, transform 0.05s ease;
+      white-space: nowrap;
     }
 
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 12px;
-      margin-top: 14px;
+    .btn-primary {
+      background: #fff;
+      color: var(--purple-dark);
+      border: 1px solid rgba(255, 255, 255, 0.6);
     }
 
-    .section-card {
-      border-radius: 10px;
-      border: 1px solid var(--gray-border);
-      padding: 10px 12px 12px;
-      background: #ffffff;
+    .btn-primary:hover {
+      background: var(--purple-light);
+      transform: translateY(-1px);
     }
 
-    .section-title {
-      font-size: 0.95rem;
-      font-weight: 600;
-      margin-bottom: 4px;
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+      border: 1px solid rgba(0, 0, 0, 0.1);
     }
 
-    .section-subtitle {
+    .btn-danger:hover {
+      background: var(--danger-dark);
+      transform: translateY(-1px);
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: default;
+      transform: none;
+    }
+
+    .helper-text {
       font-size: 0.8rem;
       color: var(--text-muted);
-      margin-bottom: 6px;
-    }
-
-    .question-row {
       margin-top: 4px;
     }
 
-    .question-label {
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      background: var(--purple-light);
+      color: var(--purple-dark);
+      margin-left: 6px;
+    }
+
+    .pill-muted {
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 10px;
+    }
+
+    .summary-item-label {
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .summary-item-value {
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    .summary-item-caption {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .question-card {
+      border-top: 1px solid var(--gray-border);
+      padding-top: 10px;
+      margin-top: 10px;
+    }
+
+    .question-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin: 0 0 4px;
+    }
+
+    .question-subtitle {
       font-size: 0.8rem;
       color: var(--text-muted);
-      margin-bottom: 3px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      margin: 0 0 8px;
     }
 
     .bar-row {
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 8px;
+      font-size: 0.8rem;
+      margin-bottom: 4px;
+    }
+
+    .bar-label {
+      width: 24px;
+      text-align: right;
+      color: var(--text-muted);
     }
 
     .bar-track {
       flex: 1;
-      height: 8px;
+      background: #edf2ff;
       border-radius: 999px;
-      background: #f3f4f6;
       overflow: hidden;
-      display: flex;
+      height: 7px;
     }
 
-    .bar {
+    .bar-fill {
       height: 100%;
-    }
-
-    .bar-1 { background: #fee2e2; }
-    .bar-2 { background: #fed7aa; }
-    .bar-3 { background: #fef3c7; }
-    .bar-4 { background: #d9f99d; }
-    .bar-5 { background: #bbf7d0; }
-
-    .bar-label {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      min-width: 90px;
-      text-align: right;
-    }
-
-    .pill {
-      display: inline-block;
-      padding: 2px 8px;
       border-radius: 999px;
-      font-size: 0.75rem;
-      border: 1px solid #e5e7eb;
-      background: #f9fafb;
-      margin-right: 4px;
-      margin-top: 4px;
+      background: linear-gradient(90deg, #a855f7, #4f46e5);
     }
 
-    /* Free text */
-    .free-section {
-      padding: 10px 0;
-      border-top: 1px solid #f3f4f6;
+    .bar-count {
+      width: 26px;
+      text-align: left;
+      color: var(--text-muted);
     }
 
-    .free-header {
+    .muted {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    .section-title {
+      font-size: 1rem;
       font-weight: 600;
-      font-size: 0.95rem;
+      margin: 18px 0 6px;
+    }
+
+    .section-description {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin: 0 0 8px;
+    }
+
+    .open-ended-group {
+      border-top: 1px solid var(--gray-border);
+      padding-top: 10px;
+      margin-top: 10px;
+      font-size: 0.86rem;
+    }
+
+    .open-ended-question {
+      font-weight: 600;
       margin-bottom: 2px;
     }
 
-    .free-meta {
-      font-size: 0.8rem;
+    .open-ended-meta {
+      font-size: 0.78rem;
       color: var(--text-muted);
       margin-bottom: 4px;
     }
 
-    .free-list {
-      margin: 0;
+    .open-ended-list {
       padding-left: 18px;
-      font-size: 0.9rem;
+      margin: 0;
     }
 
-    .free-list li {
+    .open-ended-list li {
       margin-bottom: 3px;
     }
 
-    code {
-      font-size: 0.8rem;
-      background: #f3f4f6;
-      padding: 1px 4px;
-      border-radius: 4px;
-    }
-
-    @media print {
-      header {
-        box-shadow: none;
+    @media (max-width: 640px) {
+      .header {
+        border-radius: 0 0 16px 16px;
+        margin-left: -16px;
+        margin-right: -16px;
       }
-      .token-row {
-        display: none;
-      }
-      #status {
-        display: none;
-      }
-      body {
-        background: white;
-      }
-      main {
-        max-width: none;
-        margin: 0;
-        padding: 0 10mm;
-      }
-      .card {
-        box-shadow: none;
-        border-radius: 0;
-        border: none;
-        border-bottom: 1px solid #e5e7eb;
-        page-break-inside: avoid;
+      .page {
+        padding-top: 0;
       }
     }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Roy-Hart Climate Survey &mdash; Admin</h1>
-  </header>
+  <div class="page">
+    <header class="header">
+      <h1 class="header-title">Roy-Hart Climate Survey – Admin</h1>
+      <p class="header-subtitle">
+        View distributions, averages, and open-ended responses. Use this page
+        for printing or copying into reports.
+      </p>
+    </header>
 
-  <main>
-    <!-- Token / load -->
+    <!-- Controls -->
     <section class="card">
-      <h2>Admin access</h2>
-      <p>Enter the admin password (must match <code>ADMIN_TOKEN</code> in Render) to view summary reports.</p>
-      <div class="token-row">
-        <input
-          id="admin-token"
-          type="password"
-          placeholder="Enter admin token"
-          autocomplete="off"
-        />
-        <button id="load-summary">Load summary</button>
+      <p class="card-title">Access controls</p>
+      <p class="card-subtitle">
+        Enter the admin token (matches <code>ADMIN_TOKEN</code> in Render) to
+        load a summary from the backend.
+      </p>
+
+      <div class="row" style="margin-bottom: 8px;">
+        <div style="flex: 0 0 auto;">
+          <input
+            id="adminTokenInput"
+            class="token-input"
+            type="password"
+            placeholder="Admin token"
+          />
+        </div>
+        <div style="flex: 0 0 auto; display: flex; gap: 8px;">
+          <button id="loadSummaryBtn" class="btn btn-primary">
+            Load summary
+          </button>
+          <button id="resetBtn" class="btn btn-danger">
+            Reset all responses
+          </button>
+        </div>
       </div>
-      <div id="status"></div>
+      <p class="helper-text">
+        <strong>Reset all responses</strong> will permanently delete all stored
+        submissions from the database
+        (<code>/admin/reset?token=…</code>). Use this only when starting a new
+        survey year.
+      </p>
+      <p id="statusLine" class="helper-text"></p>
     </section>
 
-    <!-- Numeric summary -->
-    <section id="summary-card" class="card" hidden>
-      <h2>Overall Results</h2>
-      <div id="summary-meta" class="summary-meta"></div>
-      <div id="summary-content"></div>
-    </section>
+    <!-- Summary / Charts / Free Responses will be injected here -->
+    <section id="summaryRoot"></section>
+  </div>
 
-    <!-- Free text -->
-    <section id="free-card" class="card" hidden>
-      <h2>Open-ended Responses</h2>
-      <p>Grouped by question and building. These are exactly as written by families.</p>
-      <div id="free-content"></div>
-    </section>
-  </main>
-
+  <!-- Logic lives in external JS file (CSP-friendly) -->
   <script src="admin.js" defer></script>
 </body>
 </html>
