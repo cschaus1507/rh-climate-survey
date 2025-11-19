@@ -1,283 +1,322 @@
-// admin.js – Roy-Hart Climate Survey admin dashboard
+// admin.js
 
-(function () {
-  const tokenInput = document.getElementById('admin-token');
-  const loadBtn = document.getElementById('load-summary');
-  const statusEl = document.getElementById('status');
-  const summaryCard = document.getElementById('summary-card');
-  const summaryMeta = document.getElementById('summary-meta');
-  const summaryContent = document.getElementById('summary-content');
-  const freeCard = document.getElementById('free-card');
-  const freeContent = document.getElementById('free-content');
+// ---------- helpers for labels ----------
 
-  // Restore token from localStorage if available
-  const STORAGE_KEY = 'rh_climate_admin_token';
-  const savedToken = window.localStorage.getItem(STORAGE_KEY) || '';
-  if (savedToken) tokenInput.value = savedToken;
+function prettyBuildingLabel(building) {
+  if (building === 'elem') return 'Elementary';
+  if (building === 'ms') return 'Middle School';
+  if (building === 'hs') return 'High School';
+  return 'All / N/A';
+}
 
-  loadBtn.addEventListener('click', () => {
-    const token = tokenInput.value.trim();
-    if (!token) {
-      setStatus('Please enter a token.', 'error');
-      return;
+/**
+ * Turn a question key like "safety_reporting_hs" into a readable label:
+ * "Safety Reporting" (building is shown separately).
+ * You can customize this map with your exact wording if you’d like.
+ */
+function prettyQuestionLabel(key) {
+  // Strip building suffix for label
+  var base = key.replace(/_(elem|ms|hs)$/, '');
+  var words = base.split('_');
+
+  // Optional nicer replacements by prefix
+  var prefixMap = {
+    community: 'School Community',
+    comm: 'Communicating Effectively',
+    success: 'Supporting Student Success',
+    advocacy: 'Speaking Up for Every Child',
+    decision: 'Decision Making',
+    safety: 'School Safety'
+  };
+
+  var prefix = words[0];
+  if (prefixMap[prefix]) {
+    // Show "Category – rest of words"
+    var rest = words.slice(1).join(' ');
+    rest = rest
+      .replace(/\b\w/g, function (c) { return c.toUpperCase(); })
+      .trim();
+    if (rest) {
+      return prefixMap[prefix] + ' – ' + rest;
     }
-    window.localStorage.setItem(STORAGE_KEY, token);
-    fetchSummary(token);
+    return prefixMap[prefix];
+  }
+
+  // Fallback: just title-case the whole thing
+  return base
+    .replace(/\b\w/g, function (c) { return c.toUpperCase(); })
+    .replace(/_/g, ' ');
+}
+
+// ---------- DOM references ----------
+
+var tokenInput = document.getElementById('adminTokenInput');
+var loadBtn = document.getElementById('loadSummaryBtn');
+var resetBtn = document.getElementById('resetBtn');
+var statusLine = document.getElementById('statusLine');
+var summaryRoot = document.getElementById('summaryRoot');
+
+// ---------- event wiring ----------
+
+loadBtn.addEventListener('click', function () {
+  var token = (tokenInput.value || '').trim();
+  if (!token) {
+    alert('Please enter the admin token.');
+    return;
+  }
+  loadSummary(token);
+});
+
+resetBtn.addEventListener('click', function () {
+  var token = (tokenInput.value || '').trim();
+  if (!token) {
+    alert('Enter the admin token before resetting.');
+    return;
+  }
+
+  var confirmed = confirm(
+    'This will permanently delete ALL stored submissions for this survey.\n\n' +
+      'Use this only at the beginning of a new survey year.\n\n' +
+      'Are you sure you want to continue?'
+  );
+
+  if (!confirmed) return;
+
+  resetAllResponses(token);
+});
+
+// Press Enter in token box to load
+tokenInput.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') {
+    loadBtn.click();
+  }
+});
+
+// ---------- backend calls ----------
+
+async function loadSummary(token) {
+  statusLine.textContent = 'Loading summary…';
+  summaryRoot.innerHTML = '';
+  loadBtn.disabled = true;
+
+  try {
+    const res = await fetch(
+      `/admin/summary?token=${encodeURIComponent(token)}`
+    );
+
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || 'Unable to load summary');
+    }
+
+    renderSummary(data.summary);
+    statusLine.textContent = 'Summary loaded.';
+  } catch (err) {
+    console.error(err);
+    statusLine.textContent = 'Error: ' + err.message;
+    alert('Error loading summary: ' + err.message);
+  } finally {
+    loadBtn.disabled = false;
+  }
+}
+
+async function resetAllResponses(token) {
+  statusLine.textContent = 'Sending reset request…';
+  resetBtn.disabled = true;
+
+  try {
+    const res = await fetch(
+      `/admin/reset?token=${encodeURIComponent(token)}`
+    );
+    const data = await res.json().catch(function () { return {}; });
+
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || 'Reset failed');
+    }
+
+    alert('All submissions have been cleared successfully.');
+    statusLine.textContent =
+      'All submissions cleared. The summary below (if any) reflects the previous data until you reload.';
+    summaryRoot.innerHTML =
+      '<p class="muted">All submissions have been cleared. Once new responses are collected, click “Load summary” again.</p>';
+  } catch (err) {
+    console.error(err);
+    statusLine.textContent = 'Reset error: ' + err.message;
+    alert('Reset failed: ' + err.message);
+  } finally {
+    resetBtn.disabled = false;
+  }
+}
+
+// ---------- render functions ----------
+
+function renderSummary(summary) {
+  summaryRoot.innerHTML = '';
+
+  if (!summary) {
+    summaryRoot.innerHTML =
+      '<p class="muted">No summary data returned from the backend.</p>';
+    return;
+  }
+
+  // --- Top-level card with overall info + counts ---
+  var topCard = document.createElement('section');
+  topCard.className = 'card';
+  topCard.innerHTML =
+    '<p class="card-title">Overview</p>' +
+    '<p class="card-subtitle">High-level information about this survey run.</p>';
+
+  var grid = document.createElement('div');
+  grid.className = 'summary-grid';
+
+  var totalSubmissions = summary.totalSubmissions || 0;
+
+  grid.appendChild(summaryItem('Total responses', totalSubmissions, 'All buildings, all grades'));
+  grid.appendChild(summaryItem('Number of questions', Object.keys(summary.questions || {}).length, 'Scale questions that returned data'));
+  grid.appendChild(summaryItem('Free-response questions', Object.keys(summary.freeText || {}).length, 'Questions with at least one open-ended response'));
+
+  topCard.appendChild(grid);
+  summaryRoot.appendChild(topCard);
+
+  // --- Distribution by question (scale 1–5) ---
+  if (summary.questions && Object.keys(summary.questions).length > 0) {
+    var scaleCard = document.createElement('section');
+    scaleCard.className = 'card';
+    scaleCard.innerHTML =
+      '<p class="section-title">Scale questions (1–5)</p>' +
+      '<p class="section-description">Each card shows the distribution of ratings for a question. These are based on the data returned by the backend summary.</p>';
+
+    Object.keys(summary.questions)
+      .sort()
+      .forEach(function (qKey) {
+        var q = summary.questions[qKey];
+        var qElem = renderQuestionCard(qKey, q);
+        scaleCard.appendChild(qElem);
+      });
+
+    summaryRoot.appendChild(scaleCard);
+  }
+
+  // --- Open-ended responses ---
+  if (summary.freeText && Object.keys(summary.freeText).length > 0) {
+    var freeCard = document.createElement('section');
+    freeCard.className = 'card';
+    freeCard.innerHTML =
+      '<p class="section-title">Open-ended Responses</p>' +
+      '<p class="section-description">Grouped by question and building. These are exactly as written by families, ready to print or copy into reports.</p>';
+
+    Object.keys(summary.freeText)
+      .sort()
+      .forEach(function (qKey) {
+        var buildingMap = summary.freeText[qKey] || {};
+        Object.keys(buildingMap)
+          .sort()
+          .forEach(function (buildingKey) {
+            var responses = buildingMap[buildingKey] || [];
+            var groupElem = renderOpenEndedGroup(qKey, buildingKey, responses);
+            freeCard.appendChild(groupElem);
+          });
+      });
+
+    summaryRoot.appendChild(freeCard);
+  }
+}
+
+function summaryItem(label, value, caption) {
+  var div = document.createElement('div');
+  div.innerHTML =
+    '<div class="summary-item-label">' +
+    label +
+    '</div>' +
+    '<div class="summary-item-value">' +
+    value +
+    '</div>' +
+    '<div class="summary-item-caption">' +
+    caption +
+    '</div>';
+  return div;
+}
+
+function renderQuestionCard(qKey, q) {
+  var container = document.createElement('div');
+  container.className = 'question-card';
+
+  var avg = typeof q.average === 'number'
+    ? q.average.toFixed(2)
+    : '–';
+
+  var title = document.createElement('p');
+  title.className = 'question-title';
+  title.textContent = prettyQuestionLabel(qKey);
+
+  var subtitle = document.createElement('p');
+  subtitle.className = 'question-subtitle';
+  subtitle.textContent =
+    'Average: ' + avg + ' (n = ' + (q.responses || 0) + ' responses)';
+  container.appendChild(title);
+  container.appendChild(subtitle);
+
+  // Bars 1–5
+  for (var rating = 1; rating <= 5; rating++) {
+    var count = (q.counts && q.counts[rating]) || 0;
+    var percent = q.responses ? (count / q.responses) * 100 : 0;
+
+    var row = document.createElement('div');
+    row.className = 'bar-row';
+
+    var label = document.createElement('span');
+    label.className = 'bar-label';
+    label.textContent = rating;
+
+    var track = document.createElement('div');
+    track.className = 'bar-track';
+
+    var fill = document.createElement('div');
+    fill.className = 'bar-fill';
+    fill.style.width = percent.toFixed(1) + '%';
+
+    track.appendChild(fill);
+
+    var countSpan = document.createElement('span');
+    countSpan.className = 'bar-count';
+    countSpan.textContent = count;
+
+    row.appendChild(label);
+    row.appendChild(track);
+    row.appendChild(countSpan);
+    container.appendChild(row);
+  }
+
+  return container;
+}
+
+function renderOpenEndedGroup(qKey, buildingKey, responses) {
+  var wrapper = document.createElement('div');
+  wrapper.className = 'open-ended-group';
+
+  var questionLine = document.createElement('div');
+  questionLine.className = 'open-ended-question';
+  questionLine.textContent = prettyQuestionLabel(qKey);
+
+  var meta = document.createElement('div');
+  meta.className = 'open-ended-meta';
+
+  var building = prettyBuildingLabel(buildingKey);
+  meta.textContent =
+    building + ' · ' + responses.length + ' response' + (responses.length === 1 ? '' : 's');
+
+  var list = document.createElement('ul');
+  list.className = 'open-ended-list';
+
+  responses.forEach(function (txt) {
+    var li = document.createElement('li');
+    li.textContent = txt;
+    list.appendChild(li);
   });
 
-  function setStatus(msg, type) {
-    statusEl.textContent = msg || '';
-    statusEl.className = '';
-    if (type) statusEl.classList.add(type);
-  }
+  wrapper.appendChild(questionLine);
+  wrapper.appendChild(meta);
+  wrapper.appendChild(list);
 
-  async function fetchSummary(token) {
-    setStatus('Loading summary…', 'info');
-    summaryCard.hidden = true;
-    freeCard.hidden = true;
-
-    try {
-      const url = `/admin/summary?token=${encodeURIComponent(token)}`;
-      const resp = await fetch(url, { method: 'GET' });
-
-      if (resp.status === 403) {
-        setStatus('Forbidden: token is incorrect.', 'error');
-        return;
-      }
-      if (!resp.ok) {
-        setStatus(`Server error (${resp.status}).`, 'error');
-        return;
-      }
-
-      const data = await resp.json();
-      if (!data.ok) {
-        setStatus(data.error || 'Unknown error from server.', 'error');
-        return;
-      }
-
-      renderSummary(data.summary);
-      renderFreeText(data.summary.freeText || {});
-      setStatus(
-        'Summary loaded. You can print this page with Ctrl+P / ⌘+P.',
-        'success'
-      );
-    } catch (err) {
-      console.error(err);
-      setStatus('Network error while loading summary.', 'error');
-    }
-  }
-
-  // ------------ Summary rendering ------------
-
-  function renderSummary(summary) {
-    summaryCard.hidden = false;
-
-    const total = summary.totalSubmissions || 0;
-    summaryMeta.innerHTML = `
-      <span><strong>${total}</strong> total submissions</span>
-      <span>Survey ID: <code>${summary.surveyId}</code></span>
-    `;
-
-    const questions = Object.values(summary.questions || {});
-    if (!questions.length) {
-      summaryContent.innerHTML = '<p>No scale-question data yet.</p>';
-      return;
-    }
-
-    // Group questions by category & building
-    const groups = new Map();
-    for (const q of questions) {
-      const meta = parseQuestionMeta(q.key);
-      const groupKey = `${meta.categoryLabel}|${meta.buildingLabel}`;
-      if (!groups.has(groupKey)) {
-        groups.set(groupKey, {
-          categoryLabel: meta.categoryLabel,
-          buildingLabel: meta.buildingLabel,
-          questions: [],
-        });
-      }
-      groups.get(groupKey).questions.push(q);
-    }
-
-    // Sort groups for stable layout
-    const groupList = Array.from(groups.values()).sort((a, b) => {
-      const c = a.categoryLabel.localeCompare(b.categoryLabel);
-      if (c !== 0) return c;
-      return a.buildingLabel.localeCompare(b.buildingLabel);
-    });
-
-    const container = document.createElement('div');
-    container.className = 'grid';
-
-    for (const group of groupList) {
-      const card = document.createElement('div');
-      card.className = 'section-card';
-
-      const title = document.createElement('div');
-      title.className = 'section-title';
-      title.textContent = group.categoryLabel;
-      card.appendChild(title);
-
-      const subtitle = document.createElement('div');
-      subtitle.className = 'section-subtitle';
-      subtitle.textContent = group.buildingLabel;
-      card.appendChild(subtitle);
-
-      // Each question in this group
-      group.questions
-        .slice()
-        .sort((a, b) => a.key.localeCompare(b.key))
-        .forEach((q) => {
-          card.appendChild(renderQuestionRow(q));
-        });
-
-      container.appendChild(card);
-    }
-
-    summaryContent.innerHTML = '';
-    summaryContent.appendChild(container);
-  }
-
-  function renderQuestionRow(q) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'question-row';
-
-    const label = document.createElement('div');
-    label.className = 'question-label';
-    label.textContent = q.key;
-    wrapper.appendChild(label);
-
-    const barRow = document.createElement('div');
-    barRow.className = 'bar-row';
-
-    const barTrack = document.createElement('div');
-    barTrack.className = 'bar-track';
-
-    const counts = q.counts || {};
-    const maxCount = Math.max(1, ...[1, 2, 3, 4, 5].map((k) => counts[k] || 0));
-
-    [1, 2, 3, 4, 5].forEach((score) => {
-      const count = counts[score] || 0;
-      const segment = document.createElement('div');
-      segment.className = `bar bar-${score}`;
-      const pct = (count / maxCount) * 100;
-      segment.style.width = `${pct}%`;
-      barTrack.appendChild(segment);
-    });
-
-    const barLabel = document.createElement('div');
-    barLabel.className = 'bar-label';
-
-    const avg =
-      typeof q.average === 'number'
-        ? q.average.toFixed(2)
-        : '–';
-
-    barLabel.textContent = `${q.responses || 0} resp · avg ${avg}`;
-
-    barRow.appendChild(barTrack);
-    barRow.appendChild(barLabel);
-
-    wrapper.appendChild(barRow);
-    return wrapper;
-  }
-
-  // ------------ Free-text rendering ------------
-
-  function renderFreeText(freeTextObj) {
-    freeContent.innerHTML = '';
-
-    const entries = Object.entries(freeTextObj || {});
-    if (!entries.length) {
-      freeCard.hidden = true;
-      return;
-    }
-
-    const rows = entries.map(([key, rawResponses]) => {
-      let responses;
-      if (Array.isArray(rawResponses)) {
-        responses = rawResponses.map(String);
-      } else if (rawResponses == null) {
-        responses = [];
-      } else {
-        responses = [String(rawResponses)];
-      }
-
-      const meta = parseQuestionMeta(key);
-      return { key, meta, responses };
-    });
-
-    // Sort by category, then building, then key
-    rows.sort((a, b) => {
-      const c = a.meta.categoryLabel.localeCompare(b.meta.categoryLabel);
-      if (c !== 0) return c;
-      const d = a.meta.buildingLabel.localeCompare(b.meta.buildingLabel);
-      if (d !== 0) return d;
-      return a.key.localeCompare(b.key);
-    });
-
-    for (const row of rows) {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'free-section';
-
-      const header = document.createElement('div');
-      header.className = 'free-header';
-      header.textContent = `${row.meta.categoryLabel} – ${row.meta.buildingLabel}`;
-      wrapper.appendChild(header);
-
-      const metaLine = document.createElement('div');
-      metaLine.className = 'free-meta';
-      metaLine.innerHTML =
-        `<code>${row.key}</code> · ${row.responses.length} response` +
-        (row.responses.length === 1 ? '' : 's');
-      wrapper.appendChild(metaLine);
-
-      const ul = document.createElement('ul');
-      ul.className = 'free-list';
-      row.responses.forEach((text) => {
-        const li = document.createElement('li');
-        li.textContent = text;
-        ul.appendChild(li);
-      });
-      wrapper.appendChild(ul);
-
-      freeContent.appendChild(wrapper);
-    }
-
-    freeCard.hidden = false;
-  }
-
-  // ------------ Helpers ------------
-
-  function parseQuestionMeta(key) {
-    // Building suffix
-    let buildingLabel = 'All / N/A';
-    let base = key;
-
-    if (key.endsWith('_elem')) {
-      buildingLabel = 'Elementary';
-      base = key.replace(/_elem$/, '');
-    } else if (key.endsWith('_ms')) {
-      buildingLabel = 'Middle School';
-      base = key.replace(/_ms$/, '');
-    } else if (key.endsWith('_hs')) {
-      buildingLabel = 'High School';
-      base = key.replace(/_hs$/, '');
-    }
-
-    // Category from prefix
-    const cat = base.split('_')[0]; // community, comm, success, advocacy, decision, safety
-    const categoryMap = {
-      community: 'School Community',
-      comm: 'Communicating Effectively',
-      success: 'Supporting Student Success',
-      advocacy: 'Speaking Up for Every Child',
-      decision: 'Decision Making',
-      safety: 'School Safety',
-    };
-
-    const categoryLabel = categoryMap[cat] || 'Other';
-
-    return { categoryLabel, buildingLabel };
-  }
-})();
+  return wrapper;
+}
