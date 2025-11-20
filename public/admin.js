@@ -24,6 +24,51 @@
     window.localStorage.setItem(STORAGE_KEY, token);
     fetchSummary(token);
   });
+// Turn building codes into friendly names
+function prettyBuildingLabel(building) {
+  if (building === 'elem') return 'Elementary';
+  if (building === 'ms') return 'Middle School';
+  if (building === 'hs') return 'High School';
+  return 'All / N/A';
+}
+
+/**
+ * Turn keys like "safety_reporting_hs" into a readable label.
+ * Building suffix (_elem/_ms/_hs) is stripped; building is shown separately.
+ * You can customize the category names in prefixMap as you like.
+ */
+function prettyQuestionLabel(key) {
+  // Remove building suffix for the main label
+  var base = key.replace(/_(elem|ms|hs)$/, '');
+  var words = base.split('_');
+
+  var prefixMap = {
+    community: 'School Community',
+    comm: 'Communicating Effectively',
+    success: 'Supporting Student Success',
+    advocacy: 'Speaking Up for Every Child',
+    decision: 'Decision Making',
+    safety: 'School Safety'
+  };
+
+  var prefix = words[0];
+  var restWords = words.slice(1);
+
+  // Nice “Category – Rest of words”
+  if (prefixMap[prefix]) {
+    var rest = restWords
+      .join(' ')
+      .replace(/\b\w/g, function (c) { return c.toUpperCase(); })
+      .trim();
+
+    return rest ? prefixMap[prefix] + ' – ' + rest : prefixMap[prefix];
+  }
+
+  // Fallback: title-case the whole thing
+  return base
+    .replace(/\b\w/g, function (c) { return c.toUpperCase(); })
+    .replace(/_/g, ' ');
+}
 
   function setStatus(msg, type) {
     statusEl.textContent = msg || '';
