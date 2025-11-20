@@ -43,45 +43,6 @@
       margin: 24px auto 48px;
       padding: 0 16px;
     }
-.btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 8px 14px;
-    border-radius: 999px;
-    border: none;
-    cursor: pointer;
-    font-size: 0.9rem;
-    font-weight: 500;
-    transition: background 0.15s ease, transform 0.05s ease;
-    white-space: nowrap;
-}
-
-.btn-primary {
-  background: #6d28d9;
-  color: #fff;
-}
-
-.btn-primary:hover {
-  background: #5b21b6;
-  transform: translateY(-1px);
-}
-
-.btn-danger {
-  background: #dc2626;
-  color: #fff;
-}
-
-.btn-danger:hover {
-  background: #b91c1c;
-  transform: translateY(-1px);
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: default;
-  transform: none;
-}
 
     .card {
       background: white;
@@ -132,6 +93,15 @@
 
     .token-row button:hover {
       background: var(--purple-dark);
+    }
+
+    /* Reset button override */
+    .reset-button {
+      background: #dc2626;
+    }
+
+    .reset-button:hover {
+      background: #b91c1c;
     }
 
     #status {
@@ -195,9 +165,10 @@
       font-size: 0.8rem;
       color: var(--text-muted);
       margin-bottom: 3px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      /* allow wrapping so the full question shows */
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
     }
 
     .bar-row {
@@ -315,22 +286,19 @@
     <!-- Token / load -->
     <section class="card">
       <h2>Admin access</h2>
-      <p>Enter the admin token (must match <code>ADMIN_TOKEN</code> in Render) to view summary reports.</p>
+      <p>
+        Enter the admin token (must match <code>ADMIN_TOKEN</code> in Render)
+        to view summary reports or reset the survey for a new year.
+      </p>
       <div class="token-row">
-        <input id="adminTokenInput" class="token-input" type="password" placeholder="Admin token" />
-        
-        <button id="loadSummaryBtn" class="btn btn-primary">
-          Load summary
-        </button>
-        
-        <button id="resetBtn" class="btn btn-danger">
-          Reset all responses
-        </button>
-        <p id="statusLine" class="helper-text"></p>
-          <p class="helper-text">
-            <strong>Reset all responses</strong> permanently deletes all stored submissions
-            (<code>/admin/reset?token=…</code>). Use this only when starting a new survey year.
-          </p>
+        <input
+          id="admin-token"
+          type="password"
+          placeholder="Enter admin token"
+          autocomplete="off"
+        />
+        <button id="load-summary">Load summary</button>
+        <button id="reset-data" class="reset-button">Reset all responses</button>
       </div>
       <div id="status"></div>
     </section>
@@ -353,3 +321,4 @@
   <script src="admin.js" defer></script>
 </body>
 </html>
+
