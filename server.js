@@ -1,13 +1,13 @@
 // server.js
 require('dotenv').config();
 
-const path = require('path');
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const morgan = require('morgan');
 const crypto = require('crypto');
 const { Pool } = require('pg');
+const path = require('path');
 
 // --------- Config ---------
 const PORT = process.env.PORT || 8080;
@@ -16,14 +16,14 @@ const SURVEY_ID =
 const DATABASE_URL = process.env.DATABASE_URL;
 const SALT = process.env.SALT || 'CHANGE_ME_SALT';
 const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || ''; // optional Sheet webhook
-const TRUST_PROXY = process.env.TRUST_PROXY !== 'false';   // default true
+const TRUST_PROXY = process.env.TRUST_PROXY !== 'false'; // default true
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 
 // Comma-separated list of prefixes, e.g.
 // "168.169.220.,168.169.221.,168.169.220.139"
 const IP_WHITELIST_PREFIXES = (process.env.IP_WHITELIST_PREFIXES || '')
   .split(',')
-  .map(s => s.trim())
+  .map((s) => s.trim())
   .filter(Boolean);
 
 if (!DATABASE_URL) {
@@ -62,17 +62,14 @@ app.use(cors({ origin: '*' })); // you can restrict later if desired
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan('tiny'));
 
-const path = require('path');
-
-// Serve the /public folder (admin.html, admin.js)
+// Serve static admin assets from /public
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Diagnostic route: See your true IP
+// Quick helper to see what IP the backend is seeing
 app.get('/myip', (req, res) => {
   const ip = req.ip || req.connection?.remoteAddress || '';
   res.json({ ip });
 });
-
 
 // --------- Helpers ---------
 function getClientIp(req) {
@@ -82,7 +79,7 @@ function getClientIp(req) {
 
 function isIpWhitelisted(ip) {
   if (!ip || !IP_WHITELIST_PREFIXES.length) return false;
-  return IP_WHITELIST_PREFIXES.some(prefix => ip.startsWith(prefix));
+  return IP_WHITELIST_PREFIXES.some((prefix) => ip.startsWith(prefix));
 }
 
 function makeIpHash(ip, allowMultiple) {
@@ -120,15 +117,6 @@ function validatePayload(payload) {
 
 // --------- Routes ---------
 
-// Quick helper to see what IP Render is seeing
-app.get('/myip', (req, res) => {
-  const ip = getClientIp(req);
-  res.json({
-    ip,
-    forwardedFor: req.headers['x-forwarded-for'] || null,
-  });
-});
-
 // Health check
 app.get('/health', async (_req, res) => {
   try {
@@ -164,6 +152,7 @@ app.post('/submit', async (req, res) => {
 
     // Optional: forward to Google Apps Script Web App (Sheet)
     if (APPS_SCRIPT_URL) {
+      // Node 18+ has global fetch
       fetch(APPS_SCRIPT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -318,7 +307,7 @@ app.get('/admin/summary', async (req, res) => {
 });
 
 // Optional public alias (if you’ve ever hit /summary directly)
-app.get('/summary', async (_req, res) => {
+app.get('/summary', async (req, res) => {
   try {
     const summary = await buildSummary();
     return res.json({ ok: true, summary });
@@ -330,7 +319,7 @@ app.get('/summary', async (_req, res) => {
   }
 });
 
-// 404 for everything else (after static + routes)
+// 404
 app.use((_req, res) => {
   res.status(404).json({ error: 'not_found' });
 });
