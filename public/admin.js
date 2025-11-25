@@ -364,68 +364,109 @@
     return wrapper;
   }
 
-  // ---------- Free-text rendering ----------
+// ---------- Free-text rendering (patched to fix [object Object]) ----------
 
-  function renderFreeText(freeTextObj) {
-    freeContent.innerHTML = '';
+function extractFreeTextValue(resp) {
+  // If it's already a clean string → return it
+  if (typeof resp === "string") return resp;
 
-    const entries = Object.entries(freeTextObj || {});
-    if (!entries.length) {
-      freeCard.hidden = true;
-      return;
+  // If it's a simple number/bool → stringify
+  if (typeof resp === "number" || typeof resp === "boolean")
+    return String(resp);
+
+  // If it's an object, try common keys
+  if (resp && typeof resp === "object") {
+    const possibleKeys = ["text", "value", "comment", "message"];
+
+    for (const k of possibleKeys) {
+      if (resp[k]) return String(resp[k]);
     }
 
-    const rows = entries.map(([key, rawResponses]) => {
-      let responses;
-      if (Array.isArray(rawResponses)) {
-        responses = rawResponses.map(String);
-      } else if (rawResponses == null) {
-        responses = [];
-      } else {
-        responses = [String(rawResponses)];
-      }
-
-      const meta = parseQuestionMeta(key);
-      return { key, meta, responses };
-    });
-
-    rows.sort((a, b) => {
-      const c = a.meta.categoryLabel.localeCompare(b.meta.categoryLabel);
-      if (c !== 0) return c;
-      const d = a.meta.buildingLabel.localeCompare(b.meta.buildingLabel);
-      if (d !== 0) return d;
-      return a.key.localeCompare(b.key);
-    });
-
-    for (const row of rows) {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'free-section';
-
-      const header = document.createElement('div');
-      header.className = 'free-header';
-      header.textContent = prettyQuestionLabel(row.key);
-      wrapper.appendChild(header);
-
-      const metaLine = document.createElement('div');
-      metaLine.className = 'free-meta';
-      metaLine.textContent =
-        `${row.meta.categoryLabel} – ${row.meta.buildingLabel} · ` +
-        `${row.responses.length} response${row.responses.length === 1 ? '' : 's'}`;
-      wrapper.appendChild(metaLine);
-
-      const ul = document.createElement('ul');
-      ul.className = 'free-list';
-      row.responses.forEach((text) => {
-        const li = document.createElement('li');
-        li.textContent = text;
-        ul.appendChild(li);
-      });
-      wrapper.appendChild(ul);
-
-      freeContent.appendChild(wrapper);
-    }
-
-    freeCard.hidden = true === false; // ensure it’s visible
-    freeCard.hidden = false;
+    // Fallback → clean JSON
+    return JSON.stringify(resp);
   }
-})();
+
+  // Final fallback
+  return String(resp || "");
+}
+
+function renderFreeText(freeTextObj) {
+  freeContent.innerHTML = "";
+
+  const entries = Object.entries(freeTextObj || {});
+  if (!entries.length) {
+    freeCard.hidden = true;
+    return;
+  }
+
+  // Convert backend freeText structure → internal rows
+  const rows = entries.map(([key, info]) => {
+    const meta = parseQuestionMeta(key);
+
+    // Backend format:
+    // {
+    //   key: "...",
+    //   responses: number,
+    //   byBuilding: { "All / N/A": [ ... ] }
+    // }
+
+    const buildings = info.byBuilding || {};
+    let responses = [];
+
+    for (const arr of Object.values(buildings)) {
+      if (Array.isArray(arr)) {
+        responses.push(...arr.map(extractFreeTextValue));
+      }
+    }
+
+    return {
+      key,
+      meta,
+      responses,
+    };
+  });
+
+  // Sort by Category → Building → Question
+  rows.sort((a, b) => {
+    const c = a.meta.categoryLabel.localeCompare(b.meta.categoryLabel);
+    if (c !== 0) return c;
+    const d = a.meta.buildingLabel.localeCompare(b.meta.buildingLabel);
+    if (d !== 0) return d;
+    return a.key.localeCompare(b.key);
+  });
+
+  // Render each free-text block
+  for (const row of rows) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "free-section";
+
+    // Header with the full pretty question label
+    const header = document.createElement("div");
+    header.className = "free-header";
+    header.textContent = prettyQuestionLabel(row.key);
+    wrapper.appendChild(header);
+
+    // Meta description line
+    const metaLine = document.createElement("div");
+    metaLine.className = "free-meta";
+    metaLine.textContent =
+      `${row.meta.categoryLabel} – ${row.meta.buildingLabel} · ` +
+      `${row.responses.length} response${row.responses.length === 1 ? "" : "s"}`;
+    wrapper.appendChild(metaLine);
+
+    // Response list
+    const ul = document.createElement("ul");
+    ul.className = "free-list";
+
+    row.responses.forEach((text) => {
+      const li = document.createElement("li");
+      li.textContent = text;
+      ul.appendChild(li);
+    });
+
+    wrapper.appendChild(ul);
+    freeContent.appendChild(wrapper);
+  }
+
+  freeCard.hidden = false;
+}
