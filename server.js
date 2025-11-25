@@ -260,11 +260,6 @@ async function buildSummary() {
       q.sum += num;
       q.counts[num] = (q.counts[num] || 0) + 1;
     }
-//url myip route: https://rh-climate-survey.onrender.com/myip
-  }
-app.get('/myip', (req, res) => {
-  res.json({ ip: req.ip });
-});
 
   // Compute averages
   Object.values(questions).forEach((q) => {
