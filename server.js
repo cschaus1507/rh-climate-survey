@@ -107,6 +107,16 @@ function validatePayload(payload) {
 
 // --------- Routes ---------
 
+// Simple helper route to see what IP the backend sees
+app.get('/myip', (req, res) => {
+  const ip = getClientIp(req);
+  res.json({
+    ip,
+    whitelisted: isIpWhitelisted(ip),
+    prefixes: IP_WHITELIST_PREFIXES,
+  });
+});
+
 // Health check
 app.get('/health', async (_req, res) => {
   try {
@@ -260,6 +270,7 @@ async function buildSummary() {
       q.sum += num;
       q.counts[num] = (q.counts[num] || 0) + 1;
     }
+  }
 
   // Compute averages
   Object.values(questions).forEach((q) => {
@@ -296,7 +307,7 @@ app.get('/admin/summary', async (req, res) => {
 });
 
 // Optional public alias (if you’ve ever hit /summary directly)
-app.get('/summary', async (req, res) => {
+app.get('/summary', async (_req, res) => {
   try {
     const summary = await buildSummary();
     return res.json({ ok: true, summary });
@@ -316,6 +327,10 @@ app.use((_req, res) => {
 app.listen(PORT, () => {
   console.log(`Survey backend listening on port ${PORT}`);
   console.log(
-    `IP whitelist prefixes: ${IP_WHITELIST_PREFIXES.length ? IP_WHITELIST_PREFIXES.join(', ') : '(none)'}`
+    `IP whitelist prefixes: ${
+      IP_WHITELIST_PREFIXES.length
+        ? IP_WHITELIST_PREFIXES.join(', ')
+        : '(none)'
+    }`
   );
 });
