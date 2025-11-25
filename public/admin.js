@@ -1,18 +1,27 @@
 // admin.js – Roy-Hart Climate Survey admin dashboard
+
 (function () {
-  const tokenInput = document.getElementById('admin-token');
-  const loadBtn = document.getElementById('load-summary');
-  const resetBtn = document.getElementById('reset-data');
-  const statusEl = document.getElementById('status');
-  const summaryCard = document.getElementById('summary-card');
-  const summaryMeta = document.getElementById('summary-meta');
-  const summaryContent = document.getElementById('summary-content');
-  const freeCard = document.getElementById('free-card');
-  const freeContent = document.getElementById('free-content');
+  const tokenInput    = document.getElementById('admin-token');
+  const loadBtn       = document.getElementById('load-summary');
+  const resetBtn      = document.getElementById('reset-data');
+  const statusEl      = document.getElementById('status');
+  const summaryCard   = document.getElementById('summary-card');
+  const summaryMeta   = document.getElementById('summary-meta');
+  const summaryContent= document.getElementById('summary-content');
+  const freeCard      = document.getElementById('free-card');
+  const freeContent   = document.getElementById('free-content');
+  const chartsCard    = document.getElementById('charts-card');
+  const chartsGrid    = document.getElementById('charts-grid');
+  const openSheetBtn  = document.getElementById('open-sheet');
 
   const STORAGE_KEY = 'rh_climate_admin_token';
+  const SHEET_URL =
+    'https://docs.google.com/spreadsheets/d/1tmL_yu-CEhlFy4lADUpU_2PbhKzz21jyIyHFoMnsAck/edit?usp=sharing';
 
-  // Map base question keys → human readable text
+  // Keep_chart_references so we can destroy them when reloading.
+  window.__rhCharts = window.__rhCharts || [];
+
+  // Map base question keys → full survey wording
   const QUESTION_TEXT = {
     // --- School Community ---
     community_welcomed:
@@ -36,9 +45,9 @@
     comm_conferences:
       "Have you attended any parent-teacher conferences or meetings?",
     comm_provided_contact:
-      "How confident are you that the school has your current contact information?",
+      "Have you provided your contact information to the school to ensure that you receive important updates?",
     comm_feedback_improve:
-      "Have you provided feedback on how the school can improve communication with families?",
+      "Have you provided feedback to the school on how they can improve their communication with families?",
     communication_free:
       "Please share any additional thoughts about communication with the school.",
 
@@ -46,23 +55,23 @@
     success_high_expectations:
       "Do you have high expectations for your child's academic success?",
     success_talked_importance:
-      "Have you talked with your child about the importance of education and future opportunities?",
+      "Have you talked with your child about the importance of education and the opportunities it can provide?",
     success_extra_support:
-      "Have you provided additional resources or support to help your child succeed?",
+      "Have you provided your child with additional resources or support to help them succeed?",
     success_comm_teacher:
-      "Have you communicated with your child's teacher about academic concerns or challenges?",
+      "Have you communicated with your child's teacher about any academic concerns or challenges your child may be facing?",
     success_free:
       "Please share any additional thoughts about supporting student success.",
 
     // --- Speaking Up for Every Child ---
     advocacy_responsive:
-      "How responsive is your child's school to your questions or concerns?",
+      "Do you feel that your child's school is responsive to your concerns or questions?",
     advocacy_for_child:
       "Have you advocated for your child's needs and interests with their school or teachers?",
     advocacy_participated:
-      "Have you participated in efforts to advocate for all children?",
+      "Have you participated in any school or community efforts to advocate for all children?",
     advocacy_feedback_needs:
-      "Have you provided feedback on how the school can better meet the needs of all children?",
+      "Have you provided feedback to the school on how they can better meet the needs of all children?",
     advocacy_encourage_child:
       "Have you encouraged your child to speak up for themselves and their peers?",
     advocacy_free:
@@ -70,13 +79,13 @@
 
     // --- Decision Making ---
     decision_participated:
-      "Have you participated in school decision-making processes or committees?",
+      "Have you participated in any school decision-making processes or committees?",
     decision_feedback_policies:
-      "Have you provided feedback on policies or programs affecting your child?",
+      "Have you provided feedback to the school on any policies or programs that affect your child or their classmates?",
     decision_collab_staff:
-      "Have you worked collaboratively with teachers or school staff to address issues or concerns?",
+      "Have you worked collaboratively with your child's teacher or school staff to address any issues or concerns?",
     decision_support_leadership:
-      "Have you supported your child in developing leadership skills and self-advocacy?",
+      "Have you supported your child in developing leadership skills and advocating for themselves and their peers?",
     decision_free:
       "Please share any additional thoughts about decision making and collaboration.",
 
@@ -84,32 +93,37 @@
     safety_child_safe:
       "How safe do you feel your child is while at school?",
     safety_notify_quickly:
-      "How confident are you that you would be notified quickly if there were a safety concern or emergency?",
+      "How confident are you that you would be notified quickly if there were a safety concern or emergency at school?",
     safety_physical_measures:
       "How confident are you in the school's physical safety measures (locked doors, visitor check-in, cameras, etc.)?",
     safety_supervision:
-      "How would you rate supervision of school grounds during arrival, dismissal, and lunch?",
+      "Do you feel the school grounds are supervised adequately during arrival, dismissal, and lunch?",
     safety_reporting:
-      "How confident are you that your child feels comfortable reporting bullying or unsafe behavior?",
+      "Do you believe your child feels comfortable reporting bullying or unsafe behavior?",
     safety_knows_who:
-      "How confident are you that your child knows who to go to if they feel unsafe or need help?",
+      "Does your child know who to go to if they are feeling unsafe or need help?",
     safety_staff_trained:
-      "How confident are you that staff are trained to respond appropriately in emergencies?",
+      "How confident are you that staff are trained to respond appropriately in emergency situations?",
     safety_free:
       "Please share any additional thoughts about school safety."
   };
 
   // Restore token from localStorage if available
   const savedToken = window.localStorage.getItem(STORAGE_KEY) || '';
-  if (savedToken) {
-    tokenInput.value = savedToken;
-  }
+  if (savedToken) tokenInput.value = savedToken;
 
   // ---- UI helpers ----
   function setStatus(msg, type) {
     statusEl.textContent = msg || '';
     statusEl.className = '';
-    if (type) statusEl.classList.add(type); // 'error' or 'success'
+    if (type) statusEl.classList.add(type);
+  }
+
+  // Sheet button
+  if (openSheetBtn) {
+    openSheetBtn.addEventListener('click', () => {
+      window.open(SHEET_URL, '_blank', 'noopener');
+    });
   }
 
   // Strip building suffix and map to full question text where possible
@@ -120,7 +134,7 @@
     // fallback: title-case the base key
     return base
       .replace(/_/g, ' ')
-      .replace(/\b\w/g, (c) => c.toUpperCase());
+      .replace(/\b\w/g, c => c.toUpperCase());
   }
 
   function parseQuestionMeta(key) {
@@ -166,10 +180,7 @@
   });
 
   tokenInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      loadBtn.click();
-    }
+    if (e.key === 'Enter') loadBtn.click();
   });
 
   resetBtn.addEventListener('click', () => {
@@ -181,8 +192,8 @@
 
     const confirmed = window.confirm(
       'This will permanently delete ALL stored submissions for this survey.\n\n' +
-        'Use this only at the beginning of a new survey year.\n\n' +
-        'Are you sure you want to continue?'
+      'Use this only at the beginning of a new survey year.\n\n' +
+      'Are you sure you want to continue?'
     );
     if (!confirmed) return;
 
@@ -195,6 +206,7 @@
     setStatus('Loading summary…');
     summaryCard.hidden = true;
     freeCard.hidden = true;
+    chartsCard.hidden = true;
 
     try {
       const url = `/admin/summary?token=${encodeURIComponent(token)}`;
@@ -215,8 +227,12 @@
         return;
       }
 
-      renderSummary(data.summary);
-      renderFreeText(data.summary.freeText || {});
+      const summary = data.summary;
+
+      renderSummary(summary);
+      renderFreeText(summary.freeText || {});
+      renderCharts(summary);
+
       setStatus(
         'Summary loaded. You can print this page with Ctrl+P / ⌘+P.',
         'success'
@@ -240,14 +256,15 @@
         throw new Error(data.error || 'Reset failed');
       }
 
-      setStatus(
-        'All submissions cleared. Reload summary after new responses arrive.',
-        'success'
-      );
+      setStatus('All submissions cleared. Reload summary after new responses arrive.', 'success');
       summaryCard.hidden = true;
       freeCard.hidden = true;
+      chartsCard.hidden = true;
       summaryContent.innerHTML = '';
       freeContent.innerHTML = '';
+      chartsGrid.innerHTML = '';
+      window.__rhCharts.forEach(ch => ch.destroy());
+      window.__rhCharts = [];
       window.alert('All submissions have been cleared successfully.');
     } catch (err) {
       console.error(err);
@@ -267,7 +284,7 @@
     summaryMeta.innerHTML = `
       <span><strong>${total}</strong> total submissions</span>
       <span>Survey ID: <code>${summary.surveyId}</code></span>
-    `;
+   `;
 
     const questions = Object.values(summary.questions || {});
     if (!questions.length) {
@@ -358,7 +375,9 @@
     barLabel.className = 'bar-label';
 
     const avg =
-      typeof q.average === 'number' ? q.average.toFixed(2) : '–';
+      typeof q.average === 'number'
+        ? q.average.toFixed(2)
+        : '–';
 
     barLabel.textContent = `${q.responses || 0} resp · avg ${avg}`;
 
@@ -369,7 +388,7 @@
     return wrapper;
   }
 
-  // ---------- Free-text rendering (supports new backend shape) ----------
+  // ---------- Free-text rendering ----------
 
   function extractFreeTextValue(resp) {
     if (typeof resp === 'string') return resp;
@@ -381,12 +400,7 @@
       for (const k of possibleKeys) {
         if (resp[k]) return String(resp[k]);
       }
-      // fallback: JSON stringify
-      try {
-        return JSON.stringify(resp);
-      } catch {
-        return String(resp);
-      }
+      return JSON.stringify(resp);
     }
     return String(resp || '');
   }
@@ -402,25 +416,18 @@
 
     const rows = entries.map(([key, info]) => {
       const meta = parseQuestionMeta(key);
-
-      // Backend shape:
-      // info = { key, responses, byBuilding: { 'All / N/A': [ ... ] } }
+      const buildings = (info && info.byBuilding) || { 'All / N/A': [] };
       let responses = [];
-      if (info && typeof info === 'object' && info.byBuilding) {
-        for (const arr of Object.values(info.byBuilding)) {
-          if (Array.isArray(arr)) {
-            responses.push(...arr.map(extractFreeTextValue));
-          }
+
+      for (const arr of Object.values(buildings)) {
+        if (Array.isArray(arr)) {
+          responses.push(...arr.map(extractFreeTextValue));
         }
-      } else if (Array.isArray(info)) {
-        // backwards-compat: flat array
-        responses = info.map(extractFreeTextValue);
       }
 
       return { key, meta, responses };
     });
 
-    // Sort by Category → Building → Question
     rows.sort((a, b) => {
       const c = a.meta.categoryLabel.localeCompare(b.meta.categoryLabel);
       if (c !== 0) return c;
@@ -447,22 +454,201 @@
 
       const ul = document.createElement('ul');
       ul.className = 'free-list';
-
       row.responses.forEach((text) => {
         const li = document.createElement('li');
         li.textContent = text;
         ul.appendChild(li);
       });
-
       wrapper.appendChild(ul);
+
       freeContent.appendChild(wrapper);
     }
 
     freeCard.hidden = false;
   }
 
-  // Optionally auto-load saved token on page load
-  if (savedToken) {
-    fetchSummary(savedToken).catch(() => {});
+  // ---------- Charts / Visual summary ----------
+
+  function renderCharts(summary) {
+    chartsGrid.innerHTML = '';
+    chartsCard.hidden = true;
+
+    if (!summary || !summary.questions) return;
+    if (typeof Chart === 'undefined') {
+      console.warn('Chart.js not available; skipping charts.');
+      return;
+    }
+
+    const questions = Object.values(summary.questions);
+    if (!questions.length) return;
+
+    // Reset any previous charts
+    window.__rhCharts.forEach((ch) => ch.destroy());
+    window.__rhCharts = [];
+
+    // Aggregate by category & building
+    const agg = {}; // agg[category][building] = { sum, responses }
+
+    function ensureAgg(cat, bld) {
+      if (!agg[cat]) agg[cat] = {};
+      if (!agg[cat][bld]) agg[cat][bld] = { sum: 0, responses: 0 };
+      return agg[cat][bld];
+    }
+
+    for (const q of questions) {
+      const meta = parseQuestionMeta(q.key);
+      const cat = meta.categoryLabel;
+      const bld = meta.buildingLabel;
+      const sum = Number(q.sum) || 0;
+      const resp = Number(q.responses) || 0;
+
+      if (!resp) continue;
+
+      // Building-specific
+      const nodeB = ensureAgg(cat, bld);
+      nodeB.sum += sum;
+      nodeB.responses += resp;
+
+      // District-wide
+      const nodeD = ensureAgg(cat, 'District (all)');
+      nodeD.sum += sum;
+      nodeD.responses += resp;
+    }
+
+    const categories = Object.keys(agg).sort();
+    if (!categories.length) return;
+
+    chartsCard.hidden = false;
+
+    // 1) Overall by category (district)
+    const distLabels = [];
+    const distData = [];
+
+    for (const cat of categories) {
+      const node = agg[cat]['District (all)'];
+      if (!node || !node.responses) continue;
+      distLabels.push(cat);
+      distData.push(node.sum / node.responses);
+    }
+
+    if (distLabels.length) {
+      createChartBlock(
+        'Average by Category (District)',
+        distLabels,
+        distData,
+        'Average score (1–5)'
+      );
+    }
+
+    // 2) Overall by building (all categories combined)
+    const buildingTotals = {}; // building -> { sum, responses }
+    for (const cat of categories) {
+      for (const [bld, node] of Object.entries(agg[cat])) {
+        if (bld === 'District (all)') continue;
+        if (!buildingTotals[bld]) buildingTotals[bld] = { sum: 0, responses: 0 };
+        buildingTotals[bld].sum += node.sum;
+        buildingTotals[bld].responses += node.responses;
+      }
+    }
+
+    const bldLabels = [];
+    const bldData = [];
+    for (const [bld, node] of Object.entries(buildingTotals)) {
+      if (!node.responses) continue;
+      bldLabels.push(bld);
+      bldData.push(node.sum / node.responses);
+    }
+
+    if (bldLabels.length) {
+      createChartBlock(
+        'Overall Average by Building',
+        bldLabels,
+        bldData,
+        'Average score (1–5)'
+      );
+    }
+
+    // 3) For each category, show building comparisons
+    const buildingOrder = ['Elementary', 'Middle School', 'High School', 'District (all)'];
+
+    for (const cat of categories) {
+      const labels = [];
+      const values = [];
+
+      buildingOrder.forEach((bld) => {
+        const node = agg[cat][bld];
+        if (!node || !node.responses) return;
+        labels.push(bld);
+        values.push(node.sum / node.responses);
+      });
+
+      if (labels.length > 0) {
+        createChartBlock(
+          `${cat} – Average by Building`,
+          labels,
+          values,
+          'Average score (1–5)'
+        );
+      }
+    }
+  }
+
+  function createChartBlock(title, labels, data, yLabel) {
+    const block = document.createElement('div');
+    block.className = 'chart-block';
+
+    const h3 = document.createElement('h3');
+    h3.textContent = title;
+    block.appendChild(h3);
+
+    const canvas = document.createElement('canvas');
+    block.appendChild(canvas);
+    chartsGrid.appendChild(block);
+
+    const ctx = canvas.getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: yLabel,
+            data,
+            backgroundColor: 'rgba(107, 70, 193, 0.4)',
+            borderColor: 'rgba(76, 29, 149, 0.9)',
+            borderWidth: 1
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            min: 1,
+            max: 5,
+            ticks: {
+              stepSize: 1
+            },
+            title: {
+              display: true,
+              text: yLabel
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => `Avg: ${ctx.parsed.y.toFixed(2)}`
+            }
+          }
+        }
+      }
+    });
+
+    window.__rhCharts.push(chart);
   }
 })();
