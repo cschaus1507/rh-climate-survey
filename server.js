@@ -62,14 +62,17 @@ app.use(cors({ origin: '*' })); // you can restrict later if desired
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan('tiny'));
 
-// Serve static admin files (admin.html, admin.js, etc.)
-//
-// If admin.html/admin.js are in the SAME folder as server.js:
-app.use(express.static(path.join(__dirname)));
-//
-// If you instead put them in a "public" folder, comment the line above
-// and use this instead:
-// app.use(express.static(path.join(__dirname, 'public')));
+const path = require('path');
+
+// Serve the /public folder (admin.html, admin.js)
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Diagnostic route: See your true IP
+app.get('/myip', (req, res) => {
+  const ip = req.ip || req.connection?.remoteAddress || '';
+  res.json({ ip });
+});
+
 
 // --------- Helpers ---------
 function getClientIp(req) {
