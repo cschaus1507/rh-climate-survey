@@ -104,6 +104,21 @@
       background: #b91c1c;
     }
 
+    /* Google Sheet button */
+    .sheet-button {
+      border-radius: 999px;
+      border: 1px solid var(--gray-border);
+      background: #ffffff;
+      color: var(--purple-dark);
+      font-size: 0.9rem;
+      padding: 7px 14px;
+      cursor: pointer;
+    }
+
+    .sheet-button:hover {
+      background: var(--purple-light);
+    }
+
     #status {
       margin-top: 8px;
       font-size: 0.85rem;
@@ -165,7 +180,6 @@
       font-size: 0.8rem;
       color: var(--text-muted);
       margin-bottom: 3px;
-      /* allow wrapping so the full question shows */
       white-space: normal;
       overflow: visible;
       text-overflow: clip;
@@ -242,6 +256,28 @@
       margin-bottom: 3px;
     }
 
+    /* Charts */
+    #charts-card h3 {
+      margin: 10px 0 4px;
+      font-size: 0.95rem;
+    }
+
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 12px;
+    }
+
+    .chart-block {
+      padding-top: 4px;
+    }
+
+    .chart-block canvas {
+      width: 100%;
+      max-height: 260px;
+    }
+
     code {
       font-size: 0.8rem;
       background: #f3f4f6;
@@ -300,6 +336,11 @@
         <button id="load-summary">Load summary</button>
         <button id="reset-data" class="reset-button">Reset all responses</button>
       </div>
+      <div class="token-row" style="margin-top: 10px; justify-content: flex-start;">
+        <button id="open-sheet" type="button" class="sheet-button">
+          View Google Sheet (raw data)
+        </button>
+      </div>
       <div id="status"></div>
     </section>
 
@@ -316,9 +357,22 @@
       <p>Grouped by question and building. These are exactly as written by families.</p>
       <div id="free-content"></div>
     </section>
+
+    <!-- Charts / visual summary -->
+    <section id="charts-card" class="card" hidden>
+      <h2>Visual Summary</h2>
+      <p>
+        Section and building-level averages across 1–5 scale questions.
+        Hover over each bar for details. Use your browser’s Print function
+        for hard copies.
+      </p>
+      <div id="charts-grid" class="charts-grid"></div>
+    </section>
   </main>
 
+  <!-- Chart.js for visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Admin logic -->
   <script src="admin.js" defer></script>
 </body>
 </html>
-
