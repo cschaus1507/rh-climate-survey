@@ -10,24 +10,32 @@ const { Pool } = require('pg');
 
 // --------- Config ---------
 const PORT = process.env.PORT || 8080;
-const SURVEY_ID = process.env.SURVEY_ID || 'royhart_parent_family_climate_2025';
+const SURVEY_ID =
+  process.env.SURVEY_ID || 'royhart_parent_family_climate_2025';
 const DATABASE_URL = process.env.DATABASE_URL;
 const SALT = process.env.SALT || 'CHANGE_ME_SALT';
 const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || ''; // optional Sheet webhook
-const TRUST_PROXY = process.env.TRUST_PROXY !== 'false';   // default true
+const TRUST_PROXY = process.env.TRUST_PROXY !== 'false'; // default true
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
+
+// Comma-separated list of prefixes, e.g.
+// "168.169.220.,168.169.221.,168.169.220.139"
+const IP_WHITELIST_PREFIXES = (process.env.IP_WHITELIST_PREFIXES || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 if (!DATABASE_URL) {
   console.error('Missing DATABASE_URL env var.');
-  // Don't exit in Render build step; only warn.
 }
 
 // --------- DB pool ---------
 const pool = new Pool({
   connectionString: DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production'
-    ? { rejectUnauthorized: false } // typical for Render Postgres
-    : false
+  ssl:
+    process.env.NODE_ENV === 'production'
+      ? { rejectUnauthorized: false } // typical for Render Postgres
+      : false,
 });
 
 // Create table if it doesn't exist
@@ -49,22 +57,33 @@ const app = express();
 if (TRUST_PROXY) app.set('trust proxy', true);
 
 app.use(helmet());
-app.use(cors({ origin: '*' })); // later you can restrict to your domain
+app.use(cors({ origin: '*' })); // you can restrict later if desired
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan('tiny'));
 
-// Serve static files (frontend + admin) from /public
-const path = require('path');
-app.use(express.static(path.join(__dirname, 'public')));
-
 // --------- Helpers ---------
 function getClientIp(req) {
-  // With trust proxy, req.ip should be the left-most X-Forwarded-For
+  // With trust proxy, req.ip should be taken from X-Forwarded-For
   return req.ip || req.connection?.remoteAddress || '';
 }
 
-function hashIp(ip) {
-  return crypto.createHmac('sha256', SALT).update(ip).digest('hex');
+function isIpWhitelisted(ip) {
+  if (!ip || !IP_WHITELIST_PREFIXES.length) return false;
+  return IP_WHITELIST_PREFIXES.some((prefix) => ip.startsWith(prefix));
+}
+
+function makeIpHash(ip, allowMultiple) {
+  const base = ip || 'unknown_ip';
+  if (allowMultiple) {
+    // Generate a unique hash per submission so UNIQUE constraint never blocks
+    const rand = crypto.randomBytes(8).toString('hex');
+    return crypto
+      .createHmac('sha256', SALT)
+      .update(`${base}:${Date.now()}:${rand}`)
+      .digest('hex');
+  }
+  // One hash per IP → one submission per IP per survey
+  return crypto.createHmac('sha256', SALT).update(base).digest('hex');
 }
 
 function validatePayload(payload) {
@@ -74,7 +93,8 @@ function validatePayload(payload) {
   const keys = Object.keys(payload);
   if (keys.length > 1000) return 'Too many fields in payload.';
   for (const k of keys) {
-    if (typeof k !== 'string' || k.length > 200) return 'Invalid field name length.';
+    if (typeof k !== 'string' || k.length > 200)
+      return 'Invalid field name length.';
     const v = payload[k];
     const t = typeof v;
     if (!['string', 'number', 'boolean'].includes(t)) {
@@ -84,73 +104,10 @@ function validatePayload(payload) {
   }
   return null;
 }
-// --------- Admin summary helper ---------
-function computeSurveySummary(submissionRows) {
-  const questions = {};
-  const freeText = {};
-  let totalSubmissions = submissionRows.length;
-
-  for (const row of submissionRows) {
-    const payload = row.payload || {};
-    for (const [key, value] of Object.entries(payload)) {
-      // Treat anything ending in "_free" as open-ended text
-      if (key.endsWith('_free')) {
-        if (!freeText[key]) freeText[key] = [];
-        if (value && typeof value === 'string') {
-          freeText[key].push(value);
-        }
-        continue;
-      }
-
-      // Ignore empty/NA
-      if (value === '' || value === null || value === undefined || value === 'na' || value === 'N/A') {
-        continue;
-      }
-
-      // Try to parse a numeric 1–5 response
-      const num = Number(value);
-      const isScale = !Number.isNaN(num) && num >= 1 && num <= 5;
-
-      if (!questions[key]) {
-        questions[key] = {
-          key,
-          responses: 0,
-          sum: 0,
-          counts: { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 },
-          type: isScale ? 'scale' : 'other'
-        };
-      }
-
-      if (isScale) {
-        questions[key].responses += 1;
-        questions[key].sum += num;
-        const bucket = String(num);
-        questions[key].counts[bucket] = (questions[key].counts[bucket] || 0) + 1;
-      } else {
-        // Non-numeric, non-free fields → we can still count them as "other"
-        questions[key].type = 'other';
-      }
-    }
-  }
-
-  // Compute averages
-  for (const q of Object.values(questions)) {
-    if (q.type === 'scale' && q.responses > 0) {
-      q.average = q.sum / q.responses;
-    } else {
-      q.average = null;
-    }
-  }
-
-  return {
-    surveyId: SURVEY_ID,
-    totalSubmissions,
-    questions,
-    freeText
-  };
-}
 
 // --------- Routes ---------
+
+// Health check
 app.get('/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
@@ -161,55 +118,62 @@ app.get('/health', async (_req, res) => {
   }
 });
 
+// Survey submission
 app.post('/submit', async (req, res) => {
   const ip = getClientIp(req);
-  const ip_hash = hashIp(ip);
+  const whitelisted = isIpWhitelisted(ip);
+  const ip_hash = makeIpHash(ip, whitelisted);
 
   const payload = req.body;
   const validationError = validatePayload(payload);
   if (validationError) {
-    return res.status(400).json({ error: 'invalid_payload', message: validationError });
+    return res
+      .status(400)
+      .json({ error: 'invalid_payload', message: validationError });
   }
 
   try {
     await ensureSchema();
 
-    // one submission per IP forever for this SURVEY_ID
     await pool.query(
       'INSERT INTO submissions (survey_id, ip_hash, payload) VALUES ($1, $2, $3)',
       [SURVEY_ID, ip_hash, payload]
     );
 
     // Optional: forward to Google Apps Script Web App (Sheet)
-if (APPS_SCRIPT_URL) {
-  fetch(APPS_SCRIPT_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      surveyId: SURVEY_ID,
-      payload,
-      submittedAt: new Date().toISOString()
-    })
-  })
-    .then(async (r) => {
-      if (!r.ok) {
-        const text = await r.text().catch(() => '');
-        console.warn('Apps Script HTTP error:', r.status, text);
-      } else {
-        const text = await r.text().catch(() => '');
-        console.log('Apps Script success response:', text);
-      }
-    })
-    .catch((err) => {
-      console.warn('Apps Script forward failed:', err.message || err);
-    });
-}
+    if (APPS_SCRIPT_URL) {
+      // Node 18+ has global fetch
+      fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          surveyId: SURVEY_ID,
+          payload,
+          submittedAt: new Date().toISOString(),
+        }),
+      })
+        .then(async (r) => {
+          if (!r.ok) {
+            const text = await r.text().catch(() => '');
+            console.warn('Apps Script HTTP error:', r.status, text);
+          } else {
+            const text = await r.text().catch(() => '');
+            console.log('Apps Script success response:', text);
+          }
+        })
+        .catch((err) => {
+          console.warn('Apps Script forward failed:', err.message || err);
+        });
+    }
 
+    console.log(
+      `Submission stored from IP ${ip} (whitelisted=${whitelisted}) with hash ${ip_hash}`
+    );
 
     return res.json({ ok: true });
   } catch (err) {
     if (err && err.code === '23505') {
-      // unique violation → duplicate IP
+      // unique violation → duplicate IP (non-whitelisted)
       return res.status(403).json({ error: 'duplicate_ip' });
     }
     console.error('Submit error:', err);
@@ -217,9 +181,8 @@ if (APPS_SCRIPT_URL) {
   }
 });
 
-// --- Admin route to clear all submissions (for testing) ---
+// --- Admin route to clear all submissions (for testing / new year) ---
 // WARNING: this wipes the entire submissions table.
-// Protect it with ADMIN_TOKEN and only use while testing.
 app.get('/admin/reset', async (req, res) => {
   try {
     if (!ADMIN_TOKEN) {
@@ -231,10 +194,7 @@ app.get('/admin/reset', async (req, res) => {
       return res.status(403).json({ error: 'forbidden' });
     }
 
-    // Ensure table exists
     await ensureSchema();
-
-    // TRUNCATE has no IF EXISTS version in Postgres
     await pool.query('TRUNCATE TABLE submissions;');
 
     return res.json({ ok: true, message: 'Submissions table truncated.' });
@@ -245,29 +205,107 @@ app.get('/admin/reset', async (req, res) => {
       .json({ error: 'server_error', message: String(err) });
   }
 });
-// --- Admin summary endpoint for dashboard (read-only) ---
+
+// --- Admin summary route (used by admin.html/admin.js) ---
+async function buildSummary() {
+  await ensureSchema();
+
+  const { rows } = await pool.query(
+    'SELECT payload FROM submissions WHERE survey_id = $1',
+    [SURVEY_ID]
+  );
+
+  const questions = {};
+  const freeText = {};
+  const totalSubmissions = rows.length;
+
+  for (const row of rows) {
+    const payload = row.payload || {};
+    for (const [key, rawVal] of Object.entries(payload)) {
+      const val = rawVal == null ? '' : String(rawVal).trim();
+
+      // Free-text fields (section open responses)
+      if (key.endsWith('_free')) {
+        if (!val) continue;
+        if (!freeText[key]) {
+          freeText[key] = {
+            key,
+            responses: 0,
+            // grouped by "building" label – currently we only know "All / N/A"
+            byBuilding: {
+              'All / N/A': [],
+            },
+          };
+        }
+        freeText[key].responses += 1;
+        freeText[key].byBuilding['All / N/A'].push(val);
+        continue;
+      }
+
+      // Numeric 1–5 scale responses
+      const num = Number(val);
+      if (!Number.isFinite(num) || num < 1 || num > 5) continue;
+
+      if (!questions[key]) {
+        questions[key] = {
+          key,
+          responses: 0,
+          sum: 0,
+          counts: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+          type: 'scale',
+        };
+      }
+      const q = questions[key];
+      q.responses += 1;
+      q.sum += num;
+      q.counts[num] = (q.counts[num] || 0) + 1;
+    }
+  }
+
+  // Compute averages
+  Object.values(questions).forEach((q) => {
+    q.average = q.responses ? q.sum / q.responses : null;
+  });
+
+  return {
+    surveyId: SURVEY_ID,
+    totalSubmissions,
+    questions,
+    freeText,
+  };
+}
+
+// Protected summary endpoint
 app.get('/admin/summary', async (req, res) => {
   try {
     if (!ADMIN_TOKEN) {
       return res.status(500).json({ error: 'admin_token_not_set' });
     }
-
     const token = req.query.token;
     if (token !== ADMIN_TOKEN) {
       return res.status(403).json({ error: 'forbidden' });
     }
 
-    await ensureSchema();
-    const result = await pool.query(
-      'SELECT payload FROM submissions WHERE survey_id = $1',
-      [SURVEY_ID]
-    );
-
-    const summary = computeSurveySummary(result.rows);
+    const summary = await buildSummary();
     return res.json({ ok: true, summary });
   } catch (err) {
     console.error('Admin summary error:', err);
-    return res.status(500).json({ ok: false, error: 'server_error' });
+    return res
+      .status(500)
+      .json({ error: 'server_error', message: String(err) });
+  }
+});
+
+// Optional public alias (if you’ve ever hit /summary directly)
+app.get('/summary', async (req, res) => {
+  try {
+    const summary = await buildSummary();
+    return res.json({ ok: true, summary });
+  } catch (err) {
+    console.error('Summary error:', err);
+    return res
+      .status(500)
+      .json({ error: 'server_error', message: String(err) });
   }
 });
 
@@ -278,4 +316,7 @@ app.use((_req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Survey backend listening on port ${PORT}`);
+  console.log(
+    `IP whitelist prefixes: ${IP_WHITELIST_PREFIXES.length ? IP_WHITELIST_PREFIXES.join(', ') : '(none)'}`
+  );
 });
