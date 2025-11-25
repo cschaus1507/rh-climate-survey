@@ -1,5 +1,4 @@
 // admin.js – Roy-Hart Climate Survey admin dashboard
-
 (function () {
   const tokenInput = document.getElementById('admin-token');
   const loadBtn = document.getElementById('load-summary');
@@ -13,7 +12,7 @@
 
   const STORAGE_KEY = 'rh_climate_admin_token';
 
-  // Map base question keys → full survey wording
+  // Map base question keys → human readable text
   const QUESTION_TEXT = {
     // --- School Community ---
     community_welcomed:
@@ -37,9 +36,9 @@
     comm_conferences:
       "Have you attended any parent-teacher conferences or meetings?",
     comm_provided_contact:
-      "Have you provided your contact information to the school to ensure that you receive important updates?",
+      "How confident are you that the school has your current contact information?",
     comm_feedback_improve:
-      "Have you provided feedback to the school on how they can improve their communication with families?",
+      "Have you provided feedback on how the school can improve communication with families?",
     communication_free:
       "Please share any additional thoughts about communication with the school.",
 
@@ -47,23 +46,23 @@
     success_high_expectations:
       "Do you have high expectations for your child's academic success?",
     success_talked_importance:
-      "Have you talked with your child about the importance of education and the opportunities it can provide?",
+      "Have you talked with your child about the importance of education and future opportunities?",
     success_extra_support:
-      "Have you provided your child with additional resources or support to help them succeed?",
+      "Have you provided additional resources or support to help your child succeed?",
     success_comm_teacher:
-      "Have you communicated with your child's teacher about any academic concerns or challenges your child may be facing?",
+      "Have you communicated with your child's teacher about academic concerns or challenges?",
     success_free:
       "Please share any additional thoughts about supporting student success.",
 
     // --- Speaking Up for Every Child ---
     advocacy_responsive:
-      "Do you feel that your child's school is responsive to your concerns or questions?",
+      "How responsive is your child's school to your questions or concerns?",
     advocacy_for_child:
       "Have you advocated for your child's needs and interests with their school or teachers?",
     advocacy_participated:
-      "Have you participated in any school or community efforts to advocate for all children?",
+      "Have you participated in efforts to advocate for all children?",
     advocacy_feedback_needs:
-      "Have you provided feedback to the school on how they can better meet the needs of all children?",
+      "Have you provided feedback on how the school can better meet the needs of all children?",
     advocacy_encourage_child:
       "Have you encouraged your child to speak up for themselves and their peers?",
     advocacy_free:
@@ -71,13 +70,13 @@
 
     // --- Decision Making ---
     decision_participated:
-      "Have you participated in any school decision-making processes or committees?",
+      "Have you participated in school decision-making processes or committees?",
     decision_feedback_policies:
-      "Have you provided feedback to the school on any policies or programs that affect your child or their classmates?",
+      "Have you provided feedback on policies or programs affecting your child?",
     decision_collab_staff:
-      "Have you worked collaboratively with your child's teacher or school staff to address any issues or concerns?",
+      "Have you worked collaboratively with teachers or school staff to address issues or concerns?",
     decision_support_leadership:
-      "Have you supported your child in developing leadership skills and advocating for themselves and their peers?",
+      "Have you supported your child in developing leadership skills and self-advocacy?",
     decision_free:
       "Please share any additional thoughts about decision making and collaboration.",
 
@@ -85,30 +84,32 @@
     safety_child_safe:
       "How safe do you feel your child is while at school?",
     safety_notify_quickly:
-      "How confident are you that you would be notified quickly if there were a safety concern or emergency at school?",
+      "How confident are you that you would be notified quickly if there were a safety concern or emergency?",
     safety_physical_measures:
       "How confident are you in the school's physical safety measures (locked doors, visitor check-in, cameras, etc.)?",
     safety_supervision:
-      "Do you feel the school grounds are supervised adequately during arrival, dismissal, and lunch?",
+      "How would you rate supervision of school grounds during arrival, dismissal, and lunch?",
     safety_reporting:
-      "Do you believe your child feels comfortable reporting bullying or unsafe behavior?",
+      "How confident are you that your child feels comfortable reporting bullying or unsafe behavior?",
     safety_knows_who:
-      "Does your child know who to go to if they are feeling unsafe or need help?",
+      "How confident are you that your child knows who to go to if they feel unsafe or need help?",
     safety_staff_trained:
-      "How confident are you that staff are trained to respond appropriately in emergency situations?",
+      "How confident are you that staff are trained to respond appropriately in emergencies?",
     safety_free:
       "Please share any additional thoughts about school safety."
   };
 
   // Restore token from localStorage if available
   const savedToken = window.localStorage.getItem(STORAGE_KEY) || '';
-  if (savedToken) tokenInput.value = savedToken;
+  if (savedToken) {
+    tokenInput.value = savedToken;
+  }
 
   // ---- UI helpers ----
   function setStatus(msg, type) {
     statusEl.textContent = msg || '';
     statusEl.className = '';
-    if (type) statusEl.classList.add(type);
+    if (type) statusEl.classList.add(type); // 'error' or 'success'
   }
 
   // Strip building suffix and map to full question text where possible
@@ -119,7 +120,7 @@
     // fallback: title-case the base key
     return base
       .replace(/_/g, ' ')
-      .replace(/\b\w/g, c => c.toUpperCase());
+      .replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
   function parseQuestionMeta(key) {
@@ -165,7 +166,10 @@
   });
 
   tokenInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') loadBtn.click();
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      loadBtn.click();
+    }
   });
 
   resetBtn.addEventListener('click', () => {
@@ -177,8 +181,8 @@
 
     const confirmed = window.confirm(
       'This will permanently delete ALL stored submissions for this survey.\n\n' +
-      'Use this only at the beginning of a new survey year.\n\n' +
-      'Are you sure you want to continue?'
+        'Use this only at the beginning of a new survey year.\n\n' +
+        'Are you sure you want to continue?'
     );
     if (!confirmed) return;
 
@@ -236,7 +240,10 @@
         throw new Error(data.error || 'Reset failed');
       }
 
-      setStatus('All submissions cleared. Reload summary after new responses arrive.', 'success');
+      setStatus(
+        'All submissions cleared. Reload summary after new responses arrive.',
+        'success'
+      );
       summaryCard.hidden = true;
       freeCard.hidden = true;
       summaryContent.innerHTML = '';
@@ -351,9 +358,7 @@
     barLabel.className = 'bar-label';
 
     const avg =
-      typeof q.average === 'number'
-        ? q.average.toFixed(2)
-        : '–';
+      typeof q.average === 'number' ? q.average.toFixed(2) : '–';
 
     barLabel.textContent = `${q.responses || 0} resp · avg ${avg}`;
 
@@ -364,109 +369,100 @@
     return wrapper;
   }
 
-// ---------- Free-text rendering (patched to fix [object Object]) ----------
+  // ---------- Free-text rendering (supports new backend shape) ----------
 
-function extractFreeTextValue(resp) {
-  // If it's already a clean string → return it
-  if (typeof resp === "string") return resp;
-
-  // If it's a simple number/bool → stringify
-  if (typeof resp === "number" || typeof resp === "boolean")
-    return String(resp);
-
-  // If it's an object, try common keys
-  if (resp && typeof resp === "object") {
-    const possibleKeys = ["text", "value", "comment", "message"];
-
-    for (const k of possibleKeys) {
-      if (resp[k]) return String(resp[k]);
+  function extractFreeTextValue(resp) {
+    if (typeof resp === 'string') return resp;
+    if (typeof resp === 'number' || typeof resp === 'boolean') {
+      return String(resp);
     }
-
-    // Fallback → clean JSON
-    return JSON.stringify(resp);
-  }
-
-  // Final fallback
-  return String(resp || "");
-}
-
-function renderFreeText(freeTextObj) {
-  freeContent.innerHTML = "";
-
-  const entries = Object.entries(freeTextObj || {});
-  if (!entries.length) {
-    freeCard.hidden = true;
-    return;
-  }
-
-  // Convert backend freeText structure → internal rows
-  const rows = entries.map(([key, info]) => {
-    const meta = parseQuestionMeta(key);
-
-    // Backend format:
-    // {
-    //   key: "...",
-    //   responses: number,
-    //   byBuilding: { "All / N/A": [ ... ] }
-    // }
-
-    const buildings = info.byBuilding || {};
-    let responses = [];
-
-    for (const arr of Object.values(buildings)) {
-      if (Array.isArray(arr)) {
-        responses.push(...arr.map(extractFreeTextValue));
+    if (resp && typeof resp === 'object') {
+      const possibleKeys = ['text', 'value', 'comment', 'message'];
+      for (const k of possibleKeys) {
+        if (resp[k]) return String(resp[k]);
+      }
+      // fallback: JSON stringify
+      try {
+        return JSON.stringify(resp);
+      } catch {
+        return String(resp);
       }
     }
-
-    return {
-      key,
-      meta,
-      responses,
-    };
-  });
-
-  // Sort by Category → Building → Question
-  rows.sort((a, b) => {
-    const c = a.meta.categoryLabel.localeCompare(b.meta.categoryLabel);
-    if (c !== 0) return c;
-    const d = a.meta.buildingLabel.localeCompare(b.meta.buildingLabel);
-    if (d !== 0) return d;
-    return a.key.localeCompare(b.key);
-  });
-
-  // Render each free-text block
-  for (const row of rows) {
-    const wrapper = document.createElement("div");
-    wrapper.className = "free-section";
-
-    // Header with the full pretty question label
-    const header = document.createElement("div");
-    header.className = "free-header";
-    header.textContent = prettyQuestionLabel(row.key);
-    wrapper.appendChild(header);
-
-    // Meta description line
-    const metaLine = document.createElement("div");
-    metaLine.className = "free-meta";
-    metaLine.textContent =
-      `${row.meta.categoryLabel} – ${row.meta.buildingLabel} · ` +
-      `${row.responses.length} response${row.responses.length === 1 ? "" : "s"}`;
-    wrapper.appendChild(metaLine);
-
-    // Response list
-    const ul = document.createElement("ul");
-    ul.className = "free-list";
-
-    row.responses.forEach((text) => {
-      const li = document.createElement("li");
-      li.textContent = text;
-      ul.appendChild(li);
-    });
-
-    wrapper.appendChild(ul);
-    freeContent.appendChild(wrapper);
+    return String(resp || '');
   }
 
-  freeCard.hidden = false;
-}
+  function renderFreeText(freeTextObj) {
+    freeContent.innerHTML = '';
+
+    const entries = Object.entries(freeTextObj || {});
+    if (!entries.length) {
+      freeCard.hidden = true;
+      return;
+    }
+
+    const rows = entries.map(([key, info]) => {
+      const meta = parseQuestionMeta(key);
+
+      // Backend shape:
+      // info = { key, responses, byBuilding: { 'All / N/A': [ ... ] } }
+      let responses = [];
+      if (info && typeof info === 'object' && info.byBuilding) {
+        for (const arr of Object.values(info.byBuilding)) {
+          if (Array.isArray(arr)) {
+            responses.push(...arr.map(extractFreeTextValue));
+          }
+        }
+      } else if (Array.isArray(info)) {
+        // backwards-compat: flat array
+        responses = info.map(extractFreeTextValue);
+      }
+
+      return { key, meta, responses };
+    });
+
+    // Sort by Category → Building → Question
+    rows.sort((a, b) => {
+      const c = a.meta.categoryLabel.localeCompare(b.meta.categoryLabel);
+      if (c !== 0) return c;
+      const d = a.meta.buildingLabel.localeCompare(b.meta.buildingLabel);
+      if (d !== 0) return d;
+      return a.key.localeCompare(b.key);
+    });
+
+    for (const row of rows) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'free-section';
+
+      const header = document.createElement('div');
+      header.className = 'free-header';
+      header.textContent = prettyQuestionLabel(row.key);
+      wrapper.appendChild(header);
+
+      const metaLine = document.createElement('div');
+      metaLine.className = 'free-meta';
+      metaLine.textContent =
+        `${row.meta.categoryLabel} – ${row.meta.buildingLabel} · ` +
+        `${row.responses.length} response${row.responses.length === 1 ? '' : 's'}`;
+      wrapper.appendChild(metaLine);
+
+      const ul = document.createElement('ul');
+      ul.className = 'free-list';
+
+      row.responses.forEach((text) => {
+        const li = document.createElement('li');
+        li.textContent = text;
+        ul.appendChild(li);
+      });
+
+      wrapper.appendChild(ul);
+      freeContent.appendChild(wrapper);
+    }
+
+    freeCard.hidden = false;
+  }
+
+  // Optionally auto-load saved token on page load
+  if (savedToken) {
+    fetchSummary(savedToken).catch(() => {});
+  }
+})();
